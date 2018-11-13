@@ -459,6 +459,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 for idx in range(self.population_size):
                     if idx not in indices:
                         self._programs[-2][idx] = None
+                    else:
+                        self._programs[-2][idx].parents = None
                     if gen > 1:
                         self._programs[-3][idx] = None
 
@@ -479,7 +481,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 else:
                     if best_program.raw_fitness_ < self._program.raw_fitness_:
                         self._program = best_program
-
+                        
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
             self.run_details_['average_fitness'].append(np.mean(fitness))
@@ -504,7 +506,6 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 best_fitness = fitness[np.argmin(fitness)]
                 if best_fitness <= self.stopping_criteria:
                     break
-
 
         if isinstance(self, TransformerMixin):
             # Find the best individuals in the final generation
@@ -690,9 +691,8 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
         evolution.
     
     low_memory : bool, optional (default=False)
-        When set to ``True``, no history of parents is retained, reducing the
-        memory footprint of the evolution to only the last generation and the
-        current generation.
+        When set to ``True``, only the parents of the current generation are
+        retained.
 
     n_jobs : integer, optional (default=1)
         The number of jobs to run in parallel for `fit`. If -1, then the number
@@ -967,9 +967,8 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
         evolution.
 
     low_memory : bool, optional (default=False)
-        When set to ``True``, no history of parents is retained, reducing the
-        memory footprint of the evolution to only the last generation and the
-        current generation.
+        When set to ``True``, only the parents of the current generation are
+        retained.
 
     n_jobs : integer, optional (default=1)
         The number of jobs to run in parallel for `fit`. If -1, then the number

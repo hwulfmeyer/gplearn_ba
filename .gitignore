@@ -62,3 +62,4 @@ doc/_build/
 
 # PyBuilder
 target/
+run_install
