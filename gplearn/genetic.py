@@ -23,6 +23,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
+from .selection import make_selection, _Selection, _tournament
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -49,9 +50,9 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     max_samples = params['max_samples']
 
     max_samples = int(max_samples * n_samples)
-
+    """
     def _tournament():
-        """Find the fittest individual from a sub-population."""
+        #Find the fittest individual from a sub-population.
         contenders = random_state.randint(0, len(parents), tournament_size)
         fitness = [parents[p].fitness_ for p in contenders]
         if metric.greater_is_better:
@@ -59,6 +60,12 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
         else:
             parent_index = contenders[np.argmin(fitness)]
         return parents[parent_index], parent_index
+    """
+
+    tournament = make_selection(function=_tournament,
+                                parents = parents,
+                                tournament_size = tournament_size,
+                                greater_is_better = metric.greater_is_better)
 
     # Build programs
     programs = []
@@ -72,11 +79,11 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
             genome = None
         else:
             method = random_state.uniform()
-            parent, parent_index = _tournament()
+            parent, parent_index = tournament(random_state)
 
             if method < method_probs[0]:
                 # crossover
-                donor, donor_index = _tournament()
+                donor, donor_index = tournament(random_state)
                 program, removed, remains = parent.crossover(donor.program,
                                                              random_state)
                 genome = {'method': 'Crossover',
