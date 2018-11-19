@@ -13,6 +13,9 @@ import itertools
 from abc import ABCMeta, abstractmethod
 from time import time
 from warnings import warn
+from heapq import nlargest
+from heapq import nsmallest
+from copy import deepcopy
 
 import numpy as np
 from scipy.stats import rankdata
@@ -50,17 +53,6 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     max_samples = params['max_samples']
 
     max_samples = int(max_samples * n_samples)
-    """
-    def _tournament():
-        #Find the fittest individual from a sub-population.
-        contenders = random_state.randint(0, len(parents), tournament_size)
-        fitness = [parents[p].fitness_ for p in contenders]
-        if metric.greater_is_better:
-            parent_index = contenders[np.argmax(fitness)]
-        else:
-            parent_index = contenders[np.argmin(fitness)]
-        return parents[parent_index], parent_index
-    """
 
     tournament = make_selection(function=_tournament,
                                 parents = parents,
@@ -170,6 +162,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  n_components=None,
                  generations=20,
                  tournament_size=20,
+                 elitism_size=4,
                  stopping_criteria=0.0,
                  const_range=(-1., 1.),
                  init_depth=(2, 6),
@@ -194,6 +187,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.n_components = n_components
         self.generations = generations
         self.tournament_size = tournament_size
+        self.elitism_size = elitism_size
         self.stopping_criteria = stopping_criteria
         self.const_range = const_range
         self.init_depth = init_depth
@@ -407,12 +401,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             if gen == 0:
                 parents = None
+                population_size_elitism = self.population_size
             else:
                 parents = self._programs[gen - 1]
+                population_size_elitism = self.population_size - self.elitism_size
 
             # Parallel loop
             n_jobs, n_programs, starts = _partition_estimators(
-                self.population_size, self.n_jobs)
+                population_size_elitism, self.n_jobs)
             seeds = random_state.randint(MAX_INT, size=self.population_size)
 
             population = Parallel(n_jobs=n_jobs,
@@ -425,10 +421,29 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                                           seeds[starts[i]:starts[i + 1]],
                                           params)
                 for i in range(n_jobs))
+            
+            # elitism
+            if gen > 0 and self.elitism_size > 0:
+                indices = range(0, self.population_size-1)
+                fitness_index = [[parents[p].fitness_, p]  for p in indices]
+                if self._metric.greater_is_better:
+                    fitness_index_elite = nlargest(n=self.elitism_size, 
+                                                iterable=fitness_index, 
+                                                key=lambda x : x[0])
+                else:
+                    fitness_index_elite = nsmallest(n=self.elitism_size, 
+                                                 iterable=fitness_index, 
+                                                 key=lambda x : x[0])
+                for elitist in fitness_index_elite:
+                    program = deepcopy(parents[elitist[1]])
+                    program.parents = {'method': 'Reproduction',
+                                       'parent_idx': elitist[1],
+                                       'parent_nodes': []}
+                    population.append([program])
 
             # Reduce, maintaining order across different n_jobs
             population = list(itertools.chain.from_iterable(population))
-
+            
             fitness = [program.raw_fitness_ for program in population]
             length = [program.length_ for program in population]
 
@@ -471,24 +486,12 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                     if gen > 1:
                         self._programs[-3][idx] = None
 
-
             # Record run details
             if self._metric.greater_is_better:
                 best_program = population[np.argmax(fitness)]
             else:
                 best_program = population[np.argmin(fitness)]
 
-            if isinstance(self, RegressorMixin):
-                # Find the best individual from all generations
-                if gen == 0:
-                    self._program = best_program
-                elif self._metric.greater_is_better:
-                    if best_program.raw_fitness_ > self._program.raw_fitness_:
-                        self._program = best_program
-                else:
-                    if best_program.raw_fitness_ < self._program.raw_fitness_:
-                        self._program = best_program
-                        
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
             self.run_details_['average_fitness'].append(np.mean(fitness))
@@ -513,6 +516,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 best_fitness = fitness[np.argmin(fitness)]
                 if best_fitness <= self.stopping_criteria:
                     break
+
+
+        if isinstance(self, RegressorMixin):
+            # Find the best individual in the final generation
+            if self._metric.greater_is_better:
+                self._program = self._programs[-1][np.argmax(fitness)]
+            else:
+                self._program = self._programs[-1][np.argmin(fitness)]
 
         if isinstance(self, TransformerMixin):
             # Find the best individuals in the final generation
@@ -572,6 +583,11 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
     tournament_size : integer, optional (default=20)
         The number of programs that will compete to become part of the next
         generation.
+
+    elitism_size: integer, optional (default=1)
+        The number of the best programs that will always survive the 
+        selection process. The best programs are determined by the
+        fitness with the added penalty from the parsimony coefficient.
 
     stopping_criteria : float, optional (default=0.0)
         The required metric value required in order to stop evolution early.
@@ -744,6 +760,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  population_size=1000,
                  generations=20,
                  tournament_size=20,
+                 elitism_size=1,
                  stopping_criteria=0.0,
                  const_range=(-1., 1.),
                  init_depth=(2, 6),
@@ -766,6 +783,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             population_size=population_size,
             generations=generations,
             tournament_size=tournament_size,
+            elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
             const_range=const_range,
             init_depth=init_depth,
@@ -857,6 +875,11 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
     tournament_size : integer, optional (default=20)
         The number of programs that will compete to become part of the next
         generation.
+
+    elitism_size: integer, optional (default=1)
+        The number of the best programs that will always survive the 
+        selection process. The best programs are determined by the
+        fitness with the added penalty from the parsimony coefficient.
 
     stopping_criteria : float, optional (default=1.0)
         The required metric value required in order to stop evolution early.
@@ -1022,6 +1045,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  n_components=10,
                  generations=20,
                  tournament_size=20,
+                 elitism_size=1,
                  stopping_criteria=1.0,
                  const_range=(-1., 1.),
                  init_depth=(2, 6),
@@ -1046,6 +1070,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             n_components=n_components,
             generations=generations,
             tournament_size=tournament_size,
+            elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
             const_range=const_range,
             init_depth=init_depth,

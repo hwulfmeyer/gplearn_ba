@@ -71,3 +71,14 @@ def _tournament(random_state, parents, tournament_size, greater_is_better):
         else:
             parent_index = contenders[np.argmin(fitness)]
         return parents[parent_index], parent_index
+
+def _nsga2(random_state, parents, tournament_size, greater_is_better):
+        """Find the fittest individual from a sub-population."""
+        # TODO: IMPLEMENT
+        contenders = random_state.randint(0, len(parents), tournament_size)
+        parent_index = contenders[0]
+        return parents[parent_index], parent_index
+
+
+_selection_map = {  'tournament': _tournament,
+                    'nsga2': _nsga2}
