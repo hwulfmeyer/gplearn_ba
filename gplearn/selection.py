@@ -72,9 +72,19 @@ def _tournament(random_state, parents, tournament_size, greater_is_better):
             parent_index = contenders[np.argmin(fitness)]
         return parents[parent_index], parent_index
 
+
 def _nsga2(random_state, parents, tournament_size, greater_is_better):
         """Find the fittest individual from a sub-population."""
-        # TODO: IMPLEMENT
+        # 1. fast non-dominated sorting
+        # 2. crowding distance
+        """
+        for obj in objectives:
+            pop = pop.sort(obj)
+            pop[0] = pop[-1] = MAX_FLOAT
+            for i in range(1, len(pop)-1):
+                pop[i].dist = pop[i].dist + (pop[i+1].obj-pop[i-1].obj) / (np.argmax(pop.obj) - np.argmin(pop.obj))
+        """
+        # 2. select parents by rank
         contenders = random_state.randint(0, len(parents), tournament_size)
         parent_index = contenders[0]
         return parents[parent_index], parent_index

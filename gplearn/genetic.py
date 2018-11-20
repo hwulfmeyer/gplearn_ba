@@ -424,16 +424,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             
             # elitism
             if gen > 0 and self.elitism_size > 0:
-                indices = range(0, self.population_size-1)
-                fitness_index = [[parents[p].fitness_, p]  for p in indices]
+                indices = range(0, self.population_size)
+                fitness_index = [[parents[p].raw_fitness_, p]  for p in indices]
                 if self._metric.greater_is_better:
-                    fitness_index_elite = nlargest(n=self.elitism_size, 
-                                                iterable=fitness_index, 
-                                                key=lambda x : x[0])
+                    fitness_index_elite = sorted(fitness_index, 
+                                                key=lambda x : x[0], 
+                                                reverse=True)[:self.elitism_size]
                 else:
-                    fitness_index_elite = nsmallest(n=self.elitism_size, 
-                                                 iterable=fitness_index, 
-                                                 key=lambda x : x[0])
+                    fitness_index_elite = sorted(fitness_index, key=lambda x : x[0])[:self.elitism_size]
                 for elitist in fitness_index_elite:
                     program = deepcopy(parents[elitist[1]])
                     program.parents = {'method': 'Reproduction',
@@ -586,8 +584,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
 
     elitism_size: integer, optional (default=1)
         The number of the best programs that will always survive the 
-        selection process. The best programs are determined by the
-        fitness with the added penalty from the parsimony coefficient.
+        selection process.
 
     stopping_criteria : float, optional (default=0.0)
         The required metric value required in order to stop evolution early.
