@@ -26,7 +26,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
-from .selection import make_selection, _Selection, _tournament
+from .selection import make_selection, _Selection, _tournament, _nsga2
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -54,7 +54,12 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
 
     max_samples = int(max_samples * n_samples)
 
-    tournament = make_selection(function=_tournament,
+    """selection = make_selection(function=_tournament,
+                                parents = parents,
+                                tournament_size = tournament_size,
+                                greater_is_better = metric.greater_is_better)
+    """
+    selection = make_selection(function=_nsga2,
                                 parents = parents,
                                 tournament_size = tournament_size,
                                 greater_is_better = metric.greater_is_better)
@@ -71,11 +76,11 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
             genome = None
         else:
             method = random_state.uniform()
-            parent, parent_index = tournament(random_state)
+            parent, parent_index = selection(random_state)
 
             if method < method_probs[0]:
                 # crossover
-                donor, donor_index = tournament(random_state)
+                donor, donor_index = selection(random_state)
                 program, removed, remains = parent.crossover(donor.program,
                                                              random_state)
                 genome = {'method': 'Crossover',
@@ -425,7 +430,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             # elitism
             if gen > 0 and self.elitism_size > 0:
                 indices = range(0, self.population_size)
-                fitness_index = [[parents[p].raw_fitness_, p]  for p in indices]
+                fitness_index = [[parents[p].fitness_, p]  for p in indices]
                 if self._metric.greater_is_better:
                     fitness_index_elite = sorted(fitness_index, 
                                                 key=lambda x : x[0], 

@@ -75,14 +75,38 @@ def _tournament(random_state, parents, tournament_size, greater_is_better):
 
 def _nsga2(random_state, parents, tournament_size, greater_is_better):
         """Find the fittest individual from a sub-population."""
-        # 1. fast non-dominated sorting
-        # 2. crowding distance
         """
-        for obj in objectives:
-            pop = pop.sort(obj)
-            pop[0] = pop[-1] = MAX_FLOAT
-            for i in range(1, len(pop)-1):
-                pop[i].dist = pop[i].dist + (pop[i+1].obj-pop[i-1].obj) / (np.argmax(pop.obj) - np.argmin(pop.obj))
+        ### 1. fast non-dominated sorting
+        for A in parents:
+            for B in parents:
+                if A dominates B:
+                    A.doms.append(B)
+                elif B dominates A:
+                    A.dombycount = A.dombycount + 1
+            if A.dombycount == 0:
+                A.rank = 0
+                firstfront.append(A)
+        prfronts = []
+        prfronts.append(firstfront)
+        i = 0
+        while len(prfronts[i]) != 0:
+            nextfront = []
+            for A in prfronts[i]:
+                for B in A.doms:
+                    B.dombycount = B.dombycount - 1
+                    if B.dombycount == 0:
+                        B.rank = i + 1
+                        nextfront.append(B)
+            i = i +1
+            pfronts.append(nextfront)
+
+        ### 2. crowding distance
+        for front in prfronts:
+            for obj in objectives:
+                front = front.sort(obj)
+                pfrontop[0] = front[-1] = MAX_FLOAT
+                for i in range(1, len(pop)-1):
+                    front[i].dist = front[i].dist + (front[i+1].obj-front[i-1].obj) / (np.argmax(front.obj) - np.argmin(front.obj))
         """
         # 2. select parents by rank
         contenders = random_state.randint(0, len(parents), tournament_size)
