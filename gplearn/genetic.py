@@ -63,7 +63,7 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
                                 parents = parents,
                                 tournament_size = tournament_size,
                                 greater_is_better = metric.greater_is_better)
-
+    parents_nsga = None
     # Build programs
     programs = []
 
@@ -76,11 +76,11 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
             genome = None
         else:
             method = random_state.uniform()
-            parent, parent_index = selection(random_state)
+            parent, parent_index, parents_nsga = selection(random_state, parents_nsga)
 
             if method < method_probs[0]:
                 # crossover
-                donor, donor_index = selection(random_state)
+                donor, donor_index, parents_nsga = selection(random_state, parents_nsga)
                 program, removed, remains = parent.crossover(donor.program,
                                                              random_state)
                 genome = {'method': 'Crossover',
