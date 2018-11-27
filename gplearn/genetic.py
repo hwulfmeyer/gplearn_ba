@@ -26,7 +26,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
-from .selection import make_selection, _Selection, _tournament, _nsga2
+from .selection import _selection_map, make_selection, _Selection, _tournament, _nsga2
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -36,11 +36,12 @@ __all__ = ['SymbolicRegressor', 'SymbolicTransformer']
 MAX_INT = np.iinfo(np.int32).max
 
 
-def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
+def _parallel_evolve(n_programs, parents, parents_nsga2, X, y, sample_weight, seeds, params):
     """Private function used to build a batch of programs within a job."""
     n_samples, n_features = X.shape
     # Unpack parameters
-    tournament_size = params['tournament_size']
+    selection = params['_selection']
+    selection_params = params['selection_params']
     function_set = params['function_set']
     arities = params['arities']
     init_depth = params['init_depth']
@@ -54,16 +55,19 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
 
     max_samples = int(max_samples * n_samples)
 
-    """selection = make_selection(function=_tournament,
-                                parents = parents,
-                                tournament_size = tournament_size,
-                                greater_is_better = metric.greater_is_better)
-    """
-    selection = make_selection(function=_nsga2,
-                                parents = parents,
-                                tournament_size = tournament_size,
-                                greater_is_better = metric.greater_is_better)
-    parents_nsga = None
+    if parents_nsga2 is None:
+        selection = make_selection(function=selection,
+                                    parents = parents,
+                                    greater_is_better = metric.greater_is_better,
+                                    selection_params = selection_params)
+    else:
+        selection = make_selection(function=selection,
+                            parents_nsga2 = parents_nsga2
+                            parents = parents,
+                            greater_is_better = metric.greater_is_better,
+                            selection_params = selection_params)
+
+
     # Build programs
     programs = []
 
@@ -76,11 +80,11 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
             genome = None
         else:
             method = random_state.uniform()
-            parent, parent_index, parents_nsga = selection(random_state, parents_nsga)
+            parent, parent_index= selection(random_state)
 
             if method < method_probs[0]:
                 # crossover
-                donor, donor_index, parents_nsga = selection(random_state, parents_nsga)
+                donor, donor_index = selection(random_state)
                 program, removed, remains = parent.crossover(donor.program,
                                                              random_state)
                 genome = {'method': 'Crossover',
@@ -151,6 +155,65 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     return programs
 
 
+def _nsga2(parents):
+    """ private function for nsga2 to calculate rank & distance"""
+    # calc rank & create fronts
+    # [[parent0, domination-list1, dominated by counter2, rank3, dist4, index5], [...]]
+    parents_nsga = [[parents[i], [], 0,-1, 0, i] for i in range(len(parents))]
+    firstfront = []
+    for A in parents_nsga:
+        for B in parents_nsga:
+            # check domination
+            if round(B[0].raw_fitness_, 4) > round(A[0].raw_fitness_, 4):
+                if B[0].length_ > A[0].length_:
+                    # A dominates B
+                    A[1].append(B)
+            elif round(A[0].raw_fitness_, 4) > round(B[0].raw_fitness_, 4):
+                if A[0].length_ > B[0].length_:
+                    # B dominates A
+                    A[2] = A[2] + 1
+
+        if A[2] == 0:
+            A[3] = 0
+            firstfront.append(A)
+    prfronts = []
+    prfronts.append(firstfront)
+    i = 0
+    while len(prfronts[i]) != 0:
+        nextfront = []
+        for A in prfronts[i]:
+            for B in A[1]:
+                B[2] = B[2] - 1
+                if B[2] == 0:
+                    B[3] = i + 1
+                    nextfront.append(B)
+        i = i + 1
+        prfronts.append(nextfront)   
+    prfronts.pop()
+
+    ### 2. crowding distance
+    for front in prfronts:
+        front = sorted(front, key=lambda A: A[0].raw_fitness_)
+        front[0][4] = np.finfo(np.float).max
+        front[-1][4] = np.finfo(np.float).max
+        normalizer = 1
+        if front[-1][0].raw_fitness_ - front[0][0].raw_fitness_ != 0:
+            normalizer = front[-1][0].raw_fitness_ - front[0][0].raw_fitness_
+        for i in range(1, len(front)-1):
+            front[i][4] = front[i][4] + (front[i+1][0].raw_fitness_ - front[i-1][0].raw_fitness_) / normalizer
+
+        front = sorted(front, key=lambda A: A[0].length_)
+        front[0][4] = np.finfo(np.float).max
+        front[-1][4] = np.finfo(np.float).max
+        normalizer = 1
+        if front[-1][0].length_ - front[0][0].length_ != 0:
+            normalizer = front[-1][0].length_ - front[0][0].length_
+        for i in range(1, len(front)-1):
+            front[i][4] = front[i][4] + (front[i+1][0].length_ - front[i-1][0].length_) / normalizer
+
+    return parents_nsga, prfronts
+
+
 class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
     """Base class for symbolic regression / classification estimators.
@@ -166,7 +229,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  hall_of_fame=None,
                  n_components=None,
                  generations=20,
-                 tournament_size=20,
+                 selection='tournament',
+                 selection_params = {'tournament_size':20},
                  elitism_size=4,
                  stopping_criteria=0.0,
                  const_range=(-1., 1.),
@@ -191,7 +255,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.hall_of_fame = hall_of_fame
         self.n_components = n_components
         self.generations = generations
-        self.tournament_size = tournament_size
+        self.selection = selection
+        self.selection_params = selection_params
         self.elitism_size = elitism_size
         self.stopping_criteria = stopping_criteria
         self.const_range = const_range
@@ -211,6 +276,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.random_state = random_state
+
 
     def _verbose_reporter(self, run_details=None):
         """A report of the progress of the evolution process.
@@ -333,6 +399,15 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             else:
                 self._metric = _fitness_map[self.metric]
 
+        # check selection 
+        if isinstance(self.selection, _Selection):
+            self._selection = self.selection
+        else:
+            if self.selection not in ('tournament', 'nsga2'):
+                raise ValueError('Unsupported selection: %s' % self.metric)
+            else:
+                self._selection = _selection_map[self.selection]
+
         self._method_probs = np.array([self.p_crossover,
                                        self.p_subtree_mutation,
                                        self.p_hoist_mutation,
@@ -363,6 +438,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
         params = self.get_params()
         params['_metric'] = self._metric
+        params['_selection'] = self._selection
         params['function_set'] = self._function_set
         params['arities'] = self._arities
         params['method_probs'] = self._method_probs
@@ -411,22 +487,63 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 parents = self._programs[gen - 1]
                 population_size_elitism = self.population_size - self.elitism_size
 
-            # Parallel loop
+            # Parallel loops
             n_jobs, n_programs, starts = _partition_estimators(
                 population_size_elitism, self.n_jobs)
             seeds = random_state.randint(MAX_INT, size=self.population_size)
 
-            population = Parallel(n_jobs=n_jobs,
-                                  verbose=int(self.verbose > 1))(
-                delayed(_parallel_evolve)(n_programs[i],
-                                          parents,
-                                          X,
-                                          y,
-                                          sample_weight,
-                                          seeds[starts[i]:starts[i + 1]],
-                                          params)
-                for i in range(n_jobs))
-            
+            # Parallel loop single-objective
+            population = None
+            if self.selection in ('tournament'):
+                population = Parallel(n_jobs=n_jobs,
+                                    verbose=int(self.verbose > 1))(
+                    delayed(_parallel_evolve)(n_programs[i],
+                                            parents,
+                                            X,
+                                            y,
+                                            sample_weight,
+                                            seeds[starts[i]:starts[i + 1]],
+                                            params)
+                    for i in range(n_jobs))
+
+            # Parallel loop(s) Multi-Objectiv
+            elif self.selection in ('nsga2'):
+                #1. calc rank & distance on parents
+                parents_nsga2, _ = _nsga2(parents)
+
+                #2. create children by tourament on rank & distance (crossover & mutate children as well)
+                population = Parallel(n_jobs=n_jobs,
+                                    verbose=int(self.verbose > 1))(
+                    delayed(_parallel_evolve)(n_programs[i],
+                                            parents,
+                                            X,
+                                            y,
+                                            sample_weight,
+                                            seeds[starts[i]:starts[i + 1]],
+                                            params)
+                    for i in range(n_jobs))
+
+                #3. merge children & parents
+                for p in range(0, self.population_size):
+                    program = deepcopy(parents[p])
+                    program.parents = {'method': 'Reproduction',
+                                       'parent_idx': p,
+                                       'parent_nodes': []}
+                    population.append([program])
+                population = list(itertools.chain.from_iterable(population))
+
+                #4. calc rank & distance on merge pop
+                pop_nsga2, pop_fronts = _nsga2(population)
+
+                #5. select new parents from merged population by rank & distance
+                """
+                population = []
+                int i = 0
+                while(len(population) + len(pop_fronts[i] <= len(parents))):
+                    population = population + pop_fronts
+                get rest of last front that fits into the pop size by crowd distance
+                """
+
             # elitism
             if gen > 0 and self.elitism_size > 0:
                 indices = range(0, self.population_size)
@@ -761,7 +878,8 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
     def __init__(self,
                  population_size=1000,
                  generations=20,
-                 tournament_size=20,
+                 selection='tournament',
+                 selection_params = {'tournament_size':20},
                  elitism_size=1,
                  stopping_criteria=0.0,
                  const_range=(-1., 1.),
@@ -784,7 +902,8 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
         super(SymbolicRegressor, self).__init__(
             population_size=population_size,
             generations=generations,
-            tournament_size=tournament_size,
+            selection = selection,
+            selection_params = selection_params,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
             const_range=const_range,
@@ -1046,7 +1165,8 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  hall_of_fame=100,
                  n_components=10,
                  generations=20,
-                 tournament_size=20,
+                 selection='tournament',
+                 selection_params = {'tournament_size':20},
                  elitism_size=1,
                  stopping_criteria=1.0,
                  const_range=(-1., 1.),
@@ -1071,7 +1191,8 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             hall_of_fame=hall_of_fame,
             n_components=n_components,
             generations=generations,
-            tournament_size=tournament_size,
+            selection = selection,
+            selection_params = selection_params,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
             const_range=const_range,
