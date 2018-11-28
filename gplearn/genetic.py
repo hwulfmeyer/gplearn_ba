@@ -26,7 +26,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
-from .selection import _selection_map, make_selection, _Selection, _tournament, _nsga2
+from .selection import _selection_map, make_selection, _Selection, _tournament, _nsga2tournament
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -62,7 +62,7 @@ def _parallel_evolve(n_programs, parents, parents_nsga2, X, y, sample_weight, se
                                     selection_params = selection_params)
     else:
         selection = make_selection(function=selection,
-                            parents_nsga2 = parents_nsga2
+                            parents_nsga2 = parents_nsga2,
                             parents = parents,
                             greater_is_better = metric.greater_is_better,
                             selection_params = selection_params)
@@ -155,7 +155,7 @@ def _parallel_evolve(n_programs, parents, parents_nsga2, X, y, sample_weight, se
     return programs
 
 
-def _nsga2(parents):
+def _nsga2_rank(parents):
     """ private function for nsga2 to calculate rank & distance"""
     # calc rank & create fronts
     # [[parent0, domination-list1, dominated by counter2, rank3, dist4, index5], [...]]
@@ -191,7 +191,11 @@ def _nsga2(parents):
         prfronts.append(nextfront)   
     prfronts.pop()
 
-    ### 2. crowding distance
+    return parents_nsga, prfronts
+
+
+def _nsga2_cdist(parents_nsga, prfronts):
+        ### 2. crowding distance
     for front in prfronts:
         front = sorted(front, key=lambda A: A[0].raw_fitness_)
         front[0][4] = np.finfo(np.float).max
@@ -210,7 +214,7 @@ def _nsga2(parents):
             normalizer = front[-1][0].length_ - front[0][0].length_
         for i in range(1, len(front)-1):
             front[i][4] = front[i][4] + (front[i+1][0].length_ - front[i-1][0].length_) / normalizer
-
+    
     return parents_nsga, prfronts
 
 
@@ -509,13 +513,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             # Parallel loop(s) Multi-Objectiv
             elif self.selection in ('nsga2'):
                 #1. calc rank & distance on parents
-                parents_nsga2, _ = _nsga2(parents)
-
+                parents_nsga2, pr_fronts = _nsga2_rank(parents)
+                parents_nsga2, _ = _nsga2_cdist(parents_nsga2, pr_fronts)
                 #2. create children by tourament on rank & distance (crossover & mutate children as well)
                 population = Parallel(n_jobs=n_jobs,
                                     verbose=int(self.verbose > 1))(
                     delayed(_parallel_evolve)(n_programs[i],
                                             parents,
+                                            parents_nsga2,
                                             X,
                                             y,
                                             sample_weight,
@@ -533,16 +538,20 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 population = list(itertools.chain.from_iterable(population))
 
                 #4. calc rank & distance on merge pop
-                pop_nsga2, pop_fronts = _nsga2(population)
+                _, pop_fronts = _nsga2_rank(population)
 
-                #5. select new parents from merged population by rank & distance
-                """
+                #5. add fronts until population full, then select by distance
                 population = []
-                int i = 0
-                while(len(population) + len(pop_fronts[i] <= len(parents))):
-                    population = population + pop_fronts
-                get rest of last front that fits into the pop size by crowd distance
-                """
+                i = 0
+                while((len(population) + len(pop_fronts[i])) <= self.population_size):
+                    for p in pop_fronts[i]:
+                        population.append(p[0])
+                    i = i + 1
+                to_add = self.population_size - len(population)
+                last_front = sorted(pop_fronts[i], key=lambda A: A[4], reverse=True)[:to_add]
+                for p in last_front:
+                    population.append(p[0])
+
 
             # elitism
             if gen > 0 and self.elitism_size > 0:
