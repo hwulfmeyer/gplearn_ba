@@ -62,8 +62,7 @@ def make_selection(function, **kwargs):
     return _Selection(function, **kwargs)
 
 
-def _tournament(random_state, parents, greater_is_better, selection_params):
-        tournament_size = selection_params['tournament_size']
+def _tournament(random_state, parents, greater_is_better, tournament_size):
         """Find the fittest individual from a sub-population."""
         contenders = random_state.randint(0, len(parents), tournament_size)
         fitness = [parents[p].fitness_ for p in contenders]
@@ -74,24 +73,6 @@ def _tournament(random_state, parents, greater_is_better, selection_params):
         return parents[parent_index], parent_index
 
 
-def _nsga2tournament(random_state, parents_nsga, parents, greater_is_better, selection_params):
-        tournament_size = selection_params['tournament_size']
-        ###select parents by rank, or rank & distance
-        contenders = random_state.randint(0, len(parents), tournament_size)
-
-        parents_contenders = [parents_nsga[p] for p in contenders]
-        parents_contenders = sorted(parents_contenders, key=lambda A: A[3])
-        selected = []
-        for p in parents_contenders:
-            if p[3] == parents_contenders[0][3]:
-                selected.append(p)
-            else:
-                break
-        if len(selected) > 1:
-            selected = sorted(selected, key=lambda A: A[4], reverse=True)
-        parent_index = selected[0][5]
-        return parents[parent_index], parent_index
-
-
-_selection_map = {  'tournament': _tournament,
-                    'nsga2': _nsga2tournament}
+def _paretogp(random_state, paretofront):
+        contenders = random_state.randint(0, len(paretofront))
+        return paretofront[contenders], contenders

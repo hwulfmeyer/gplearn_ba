@@ -315,6 +315,21 @@ class _Program(object):
                     terminals[-1] -= 1
         return depth - 1
 
+
+    def _complexity(self):
+        """Calculates the complexity of the program tree."""
+        node = self.program[0]
+        if isinstance(node, _Function):
+            if node.name =='add' or node.name =='sub':
+                print("test")
+        elif isinstance(node, int):
+            # variable
+            return 2.0
+        else:
+            # constant
+            return 1.0
+
+
     def _length(self):
         """Calculates the number of functions and terminals in the program."""
         return len(self.program)
