@@ -478,11 +478,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             for i in range(len(self._programs)):
                 _ = random_state.randint(MAX_INT, size=self.population_size)
 
-        if self.verbose:
+        if self.verbose and not self.warm_start:
             # Print header fields
             self._verbose_reporter()
-
-        paretofront = []
         for gen in range(prior_generations, self.generations):
 
             start_time = time()
@@ -490,6 +488,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             if gen == 0:
                 parents = None
                 population_size_elitism = self.population_size
+                self.paretofront = []
             else:
                 parents = self._programs[gen - 1]
                 population_size_elitism = self.population_size - self.elitism_size
@@ -534,13 +533,12 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             # Parallel loop(s) Multi-Objectiv
             else:
-
                 #1. create children between paretofront und normal population
                 population = Parallel(n_jobs=n_jobs,
                                     verbose=int(self.verbose > 1))(
                     delayed(_parallel_evolve)(n_programs[i],
                                             parents,
-                                            paretofront,
+                                            self.paretofront,
                                             X,
                                             y,
                                             sample_weight,
@@ -554,9 +552,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 for p in population_ordered:
                     if p.length_ > 5 and p.length_ < 140:
                         popforparetogp.append(p)
-                for p in paretofront:
+                for p in self.paretofront:
                     popforparetogp.append(p)
-                paretofront = _paretofront(popforparetogp)
+                self.paretofront = _paretofront(popforparetogp)
 
             # Reduce, maintaining order across different n_jobs
             population = list(itertools.chain.from_iterable(population))
@@ -605,14 +603,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             # Record run details
             if self._metric.greater_is_better:
                 best_program = population[np.argmax(fitness)]
-                if len(paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
-                    best_program = paretofront[np.argmax(fitnesspareto)]
+                if len(self.paretofront) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
+                    best_program = self.paretofront[np.argmax(fitnesspareto)]
             else:
                 best_program = population[np.argmin(fitness)]
-                if len(paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
-                    best_program = paretofront[np.argmin(fitnesspareto)]
+                if len(self.paretofront) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
+                    best_program = self.paretofront[np.argmin(fitnesspareto)]
 
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
@@ -625,7 +623,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             self.run_details_['best_oob_fitness'].append(oob_fitness)
             generation_time = time() - start_time
             self.run_details_['generation_time'].append(generation_time)
-            self.run_details_['front_size'].append(len(paretofront))
+            self.run_details_['front_size'].append(len(self.paretofront))
 
             if self.verbose:
                 self._verbose_reporter(self.run_details_)
@@ -644,16 +642,16 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         if isinstance(self, RegressorMixin):
             # Find the best individual in the final generation
             if self._metric.greater_is_better:
-                if len(paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
-                    self._program = paretofront[np.argmax(fitnesspareto)]
+                if len(self.paretofront) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
+                    self._program = self.paretofront[np.argmax(fitnesspareto)]
                 else:
                     self._program = self._programs[-1][np.argmax(fitness)]
 
             else:
-                if len(paretofront) > 0:
-                    fitness = [program.raw_fitness_ for program in paretofront]
-                    self._program = paretofront[np.argmin(fitness)]
+                if len(self.paretofront) > 0:
+                    fitness = [program.raw_fitness_ for program in self.paretofront]
+                    self._program = self.paretofront[np.argmin(fitness)]
                 else:
                     self._program = self._programs[-1][np.argmin(fitness)]
 
