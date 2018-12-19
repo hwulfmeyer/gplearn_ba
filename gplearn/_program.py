@@ -315,7 +315,6 @@ class _Program(object):
                     terminals[-1] -= 1
         return depth - 1
 
-
     def _complexity(self):
         """Calculates the complexity of the program tree."""
         node = self.program[0]
@@ -328,7 +327,6 @@ class _Program(object):
         else:
             # constant
             return 1.0
-
 
     def _length(self):
         """Calculates the number of functions and terminals in the program."""
@@ -541,15 +539,12 @@ class _Program(object):
         """
         # Get a subtree to replace
         start, end = self.get_subtree(random_state)
-        removed = range(start, end)
         # Get a subtree to donate
         donor_start, donor_end = self.get_subtree(random_state, donor)
-        donor_removed = list(set(range(len(donor))) -
-                             set(range(donor_start, donor_end)))
         # Insert genetic material from donor
         return (self.program[:start] +
                 donor[donor_start:donor_end] +
-                self.program[end:]), removed, donor_removed
+                self.program[end:]), start, donor_start
 
     def subtree_mutation(self, random_state):
         """Perform the subtree mutation operation on the program.
@@ -649,7 +644,7 @@ class _Program(object):
                 else:
                     terminal = random_state.randint(self.n_features)
                 if terminal == self.n_features:
-                    terminal = random_state.uniform(*self.const_range)
+                    terminal = program[node] + random_state.uniform(*self.const_range)
                     if self.const_range is None:
                         # We should never get here
                         raise ValueError('A constant was produced with '

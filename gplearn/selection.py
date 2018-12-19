@@ -74,5 +74,5 @@ def _tournament(random_state, parents, greater_is_better, tournament_size):
 
 
 def _paretogp(random_state, paretofront):
-        contenders = random_state.randint(0, len(paretofront))
-        return paretofront[contenders], contenders
+        parent_index = random_state.randint(0, len(paretofront))
+        return paretofront[parent_index], parent_index

@@ -156,10 +156,27 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     return programs
 
 
+def _paretofront_efficient(parents):
+    """Thanks to https://stackoverflow.com/a/40239615/7490089"""
+    ndigits = 5
+    parentspareto = np.array([[round(parents[i].raw_fitness_, ndigits), parents[i].length_] for i in range(len(parents))])
+    is_front = np.ones(parentspareto.shape[0], dtype = bool)
+    for index, p in enumerate(parentspareto):
+        if is_front[index]:
+            is_front[is_front] = np.any(parentspareto[is_front]<p, axis=1)  # Remove dominated points
+            is_front[index] = True
+    paretofront = []
+    for index, p in enumerate(parents):
+        if is_front[index]:
+            paretofront.append(p)
+    return paretofront
+
+
 def _paretofront(parents):
     """ private function for nsga2 to calculate rank & distance"""
     # calc rank & create fronts
     # [[parent0, domination-list1, dominated by counter2, rank3, dist4, index5, samedom6], [...]]
+    same = 0
     ndigits = 5
     parents_nsga = [[parents[i], [], 0,-1, 0, i, False] for i in range(len(parents))]
     firstfront = []
@@ -171,6 +188,7 @@ def _paretofront(parents):
                     if not A[6]:
                         A[1].append(B)
                         B[6] = True
+                        same += 1
                     elif not B[6]:
                         A[2] = A[2] + 1
                 elif round(B[0].raw_fitness_, ndigits) >= round(A[0].raw_fitness_, ndigits) and B[0].length_ >= A[0].length_:
@@ -183,7 +201,7 @@ def _paretofront(parents):
         if A[2] == 0:
             A[3] = 0
             firstfront.append(A[0])
-    
+    print(same)
     """
     prfronts = []
     prfronts.append(firstfront)
@@ -245,6 +263,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  n_components=None,
                  generations=20,
                  paretogp=False,
+                 paretogp_lengths = (3, 100),
                  tournament_size = 20,
                  elitism_size=4,
                  stopping_criteria=0.0,
@@ -271,6 +290,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.n_components = n_components
         self.generations = generations
         self.paretogp = paretogp
+        self.paretogp_lengths = paretogp_lengths
         self.tournament_size = tournament_size
         self.elitism_size = elitism_size
         self.stopping_criteria = stopping_criteria
@@ -451,6 +471,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         if not self.warm_start or not hasattr(self, '_programs'):
             # Free allocated memory, if any
             self._programs = []
+            self._paretofronts = []
             self.run_details_ = {'generation': [],
                                  'average_length': [],
                                  'average_fitness': [],
@@ -488,10 +509,11 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             if gen == 0:
                 parents = None
                 population_size_elitism = self.population_size
-                self.paretofront = []
+                paretofront = []
             else:
                 parents = self._programs[gen - 1]
                 population_size_elitism = self.population_size - self.elitism_size
+                paretofront = self._paretofronts[gen - 1]
 
             # Parallel loops
             n_jobs, n_programs, starts = _partition_estimators(
@@ -533,12 +555,13 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             # Parallel loop(s) Multi-Objectiv
             else:
+                # ParetoGP:
                 #1. create children between paretofront und normal population
                 population = Parallel(n_jobs=n_jobs,
                                     verbose=int(self.verbose > 1))(
                     delayed(_parallel_evolve)(n_programs[i],
                                             parents,
-                                            self.paretofront,
+                                            paretofront,
                                             X,
                                             y,
                                             sample_weight,
@@ -546,15 +569,22 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                                             params)
                     for i in range(n_jobs))
 
-                #3. Update Archive
+                #2. Update Archive
                 population_ordered = list(itertools.chain.from_iterable(population))
                 popforparetogp = []
                 for p in population_ordered:
-                    if p.length_ > 5 and p.length_ < 140:
+                    if p.length_ > self.paretogp_lengths[0] and p.length_ < self.paretogp_lengths[1]:
                         popforparetogp.append(p)
-                for p in self.paretofront:
+                for p in paretofront:
                     popforparetogp.append(p)
-                self.paretofront = _paretofront(popforparetogp)
+                paretofront = _paretofront(popforparetogp)
+                self._paretofronts.append(paretofront)
+                # NSGA:
+                # 1. calc rank & distance on parents (NSGA2)
+                # 2. create children by tourament on rank & distance (crossover & mutate children as well)
+                # 3. merge children & parents
+                # 4. calc rank & distance on merge pop (NSGA2)
+                # 5. add fronts until population full, then select by distance
 
             # Reduce, maintaining order across different n_jobs
             population = list(itertools.chain.from_iterable(population))
@@ -569,8 +599,10 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 program.fitness_ = program.fitness(parsimony_coefficient)
 
             self._programs.append(population)
+            self._paretofronts.append(paretofront)
 
             # Remove old programs that didn't make it into the new population.
+            """
             if not self.low_memory:
                 for old_gen in np.arange(gen, 0, -1):
                     indices = []
@@ -599,18 +631,18 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                         self._programs[-2][idx].parents = None
                     if gen > 1:
                         self._programs[-3][idx] = None
-
+            """
             # Record run details
             if self._metric.greater_is_better:
                 best_program = population[np.argmax(fitness)]
-                if len(self.paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
-                    best_program = self.paretofront[np.argmax(fitnesspareto)]
+                if len(paretofront) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
+                    best_program = paretofront[np.argmax(fitnesspareto)]
             else:
                 best_program = population[np.argmin(fitness)]
-                if len(self.paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
-                    best_program = self.paretofront[np.argmin(fitnesspareto)]
+                if len(paretofront) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
+                    best_program = paretofront[np.argmin(fitnesspareto)]
 
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
@@ -623,7 +655,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             self.run_details_['best_oob_fitness'].append(oob_fitness)
             generation_time = time() - start_time
             self.run_details_['generation_time'].append(generation_time)
-            self.run_details_['front_size'].append(len(self.paretofront))
+            self.run_details_['front_size'].append(len(paretofront))
 
             if self.verbose:
                 self._verbose_reporter(self.run_details_)
@@ -642,16 +674,16 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         if isinstance(self, RegressorMixin):
             # Find the best individual in the final generation
             if self._metric.greater_is_better:
-                if len(self.paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in self.paretofront]
-                    self._program = self.paretofront[np.argmax(fitnesspareto)]
+                if len(self._paretofronts[-1]) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self._paretofronts[-1]]
+                    self._program = self._paretofronts[-1][np.argmax(fitnesspareto)]
                 else:
                     self._program = self._programs[-1][np.argmax(fitness)]
 
             else:
-                if len(self.paretofront) > 0:
-                    fitness = [program.raw_fitness_ for program in self.paretofront]
-                    self._program = self.paretofront[np.argmin(fitness)]
+                if len(self._paretofronts[-1]) > 0:
+                    fitness = [program.raw_fitness_ for program in self._paretofronts[-1]]
+                    self._program = self._paretofronts[-1][np.argmin(fitness)]
                 else:
                     self._program = self._programs[-1][np.argmin(fitness)]
 
@@ -889,6 +921,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  population_size=1000,
                  generations=20,
                  paretogp=False,
+                 paretogp_lengths = (3, 100),
                  tournament_size = 20,
                  elitism_size=1,
                  stopping_criteria=0.0,
@@ -913,6 +946,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             population_size=population_size,
             generations=generations,
             paretogp=paretogp,
+            paretogp_lengths = paretogp_lengths,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
@@ -1176,6 +1210,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  n_components=10,
                  generations=20,
                  paretogp=False,
+                 paretogp_lengths = (3, 100),
                  tournament_size = 20,
                  elitism_size=1,
                  stopping_criteria=1.0,
@@ -1202,6 +1237,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             n_components=n_components,
             generations=generations,
             paretogp=paretogp,
+            paretogp_lengths = paretogp_lengths,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
