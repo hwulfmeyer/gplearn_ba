@@ -629,6 +629,9 @@ class _Program(object):
                            else False
                            for _ in range(len(program))])[0]
 
+        if len(mutate) == 0 and self.p_point_replace > 0:
+            mutate = [np.random.randint(len(program))]
+
         for node in mutate:
             if isinstance(program[node], _Function):
                 arity = program[node].arity
@@ -644,7 +647,7 @@ class _Program(object):
                 else:
                     terminal = random_state.randint(self.n_features)
                 if terminal == self.n_features:
-                    terminal = program[node] + random_state.uniform(*self.const_range)
+                    terminal = random_state.uniform(*self.const_range)
                     if self.const_range is None:
                         # We should never get here
                         raise ValueError('A constant was produced with '

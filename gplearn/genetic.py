@@ -75,7 +75,6 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     for i in range(n_programs):
 
         random_state = check_random_state(seeds[i])
-
         if parents is None:
             program = None
             genome = None
@@ -201,7 +200,6 @@ def _paretofront(parents):
         if A[2] == 0:
             A[3] = 0
             firstfront.append(A[0])
-    print(same)
     """
     prfronts = []
     prfronts.append(firstfront)
@@ -519,7 +517,6 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             n_jobs, n_programs, starts = _partition_estimators(
                 population_size_elitism, self.n_jobs)
             seeds = random_state.randint(MAX_INT, size=self.population_size)
-
             # Parallel loop single-objective
             population = None
 
@@ -577,8 +574,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                         popforparetogp.append(p)
                 for p in paretofront:
                     popforparetogp.append(p)
-                paretofront = _paretofront(popforparetogp)
-                self._paretofronts.append(paretofront)
+                paretofront = _paretofront_efficient(popforparetogp)
                 # NSGA:
                 # 1. calc rank & distance on parents (NSGA2)
                 # 2. create children by tourament on rank & distance (crossover & mutate children as well)
@@ -635,14 +631,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             # Record run details
             if self._metric.greater_is_better:
                 best_program = population[np.argmax(fitness)]
-                if len(paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
-                    best_program = paretofront[np.argmax(fitnesspareto)]
+                if len(self._paretofronts[-1]) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self._paretofronts[-1]]
+                    best_program = self._paretofronts[-1][np.argmax(fitnesspareto)]
             else:
                 best_program = population[np.argmin(fitness)]
-                if len(paretofront) > 0:
-                    fitnesspareto = [program.raw_fitness_ for program in paretofront]
-                    best_program = paretofront[np.argmin(fitnesspareto)]
+                if len(self._paretofronts[-1]) > 0:
+                    fitnesspareto = [program.raw_fitness_ for program in self._paretofronts[-1]]
+                    best_program = self._paretofronts[-1][np.argmin(fitnesspareto)]
 
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
@@ -682,8 +678,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             else:
                 if len(self._paretofronts[-1]) > 0:
-                    fitness = [program.raw_fitness_ for program in self._paretofronts[-1]]
-                    self._program = self._paretofronts[-1][np.argmin(fitness)]
+                    fitnesspareto = [program.raw_fitness_ for program in self._paretofronts[-1]]
+                    self._program = self._paretofronts[-1][np.argmin(fitnesspareto)]
                 else:
                     self._program = self._programs[-1][np.argmin(fitness)]
 
