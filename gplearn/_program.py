@@ -116,6 +116,7 @@ class _Program(object):
                  arities,
                  init_depth,
                  init_method,
+                 cmplxty_measure,
                  n_features,
                  const_range,
                  metric,
@@ -128,6 +129,7 @@ class _Program(object):
         self.arities = arities
         self.init_depth = (init_depth[0], init_depth[1] + 1)
         self.init_method = init_method
+        self.cmplxty_measure = cmplxty_measure
         self.n_features = n_features
         self.const_range = const_range
         self.metric = metric
@@ -145,6 +147,7 @@ class _Program(object):
         self.raw_fitness_ = None
         self.fitness_ = None
         self.parents = None
+        self.complexity_ = None
         self._n_samples = None
         self._max_samples = None
         self._indices_state = None
@@ -315,18 +318,60 @@ class _Program(object):
                     terminals[-1] -= 1
         return depth - 1
 
-    def _complexity(self):
-        """Calculates the complexity of the program tree."""
-        node = self.program[0]
-        if isinstance(node, _Function):
-            if node.name =='add' or node.name =='sub':
-                print("test")
-        elif isinstance(node, int):
-            # variable
-            return 2.0
-        else:
-            # constant
-            return 1.0
+    def _complexityKommenda(self):
+        """ Calculates the complexity of the program tree.
+        M. Kommenda et. al.: https://doi.org/10.1007/978-3-319-34223-8_1
+        Measure is recursively defined over the nodes:
+
+        add,sub     = n1 + n2
+        mul,div     = (1+(n1))*(1+(n2))
+        sqrt        = (n1)**3
+        sin,cos,tan,exp,log = 2**(n1)
+        variable    = 2
+        constant    = 1
+        Missing: abs, neg, inv, max, min
+        """
+        arities = []
+        ops = []
+        output = ''
+        for node in self.program:
+            if len(arities) != 0 and arities[-1] == 1:
+                if ops[-1] in ('add','sub'):
+                    output += '+'
+                elif ops[-1] in ('mul','div'):
+                    output += ')*(1+'
+
+            if isinstance(node, _Function):
+                if node.name in ('mul','div'):
+                    output += '(1+'
+                elif node.name in ('sqrt'):
+                    output += '('
+                elif node.name in ('sin','cos','tan','exp','log'):
+                    output += '('
+                if len(arities) != 0:
+                    arities[-1] -= 1
+            else:
+                if isinstance(node, int):
+                    output += '2'
+                else:
+                    output += '1'
+        
+                if len(arities) != 0:
+                    arities[-1] -= 1
+                    while len(arities) != 0 and arities[-1] == 0:
+                        if ops[-1] in ('mul','div'):
+                            output += ')'
+                        elif ops[-1] in ('sin','cos','tan','exp','log'):
+                            output += ')**2'
+                        elif ops[-1] in 'sqrt':
+                            output += ')**3'
+                        arities.pop()
+                        ops.pop()
+
+            if isinstance(node, _Function):
+                arities.append(node.arity)
+                ops.append(node.name)
+        return eval(output)
 
     def _length(self):
         """Calculates the number of functions and terminals in the program."""
@@ -647,7 +692,7 @@ class _Program(object):
                 else:
                     terminal = random_state.randint(self.n_features)
                 if terminal == self.n_features:
-                    terminal = random_state.uniform(*self.const_range)
+                    terminal = random_state.uniform(*self.const_range) # program[node] + 
                     if self.const_range is None:
                         # We should never get here
                         raise ValueError('A constant was produced with '
@@ -655,7 +700,13 @@ class _Program(object):
                 program[node] = terminal
 
         return program, list(mutate)
-
+    
+    def complexity(self):
+        if self.cmplxty_measure == 'length':
+            return self.length_
+        elif self.cmplxty_measure == 'kommenda':
+            return self._complexityKommenda()
+    
     depth_ = property(_depth)
     length_ = property(_length)
     indices_ = property(_indices)
