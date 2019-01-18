@@ -76,3 +76,28 @@ def _tournament(random_state, parents, greater_is_better, tournament_size):
 def _paretogp(random_state, paretofront):
         parent_index = random_state.randint(0, len(paretofront))
         return paretofront[parent_index], parent_index
+        
+
+def _eplex(random_state, parents, greater_is_better, X, y):
+    survivors = parents
+    cases = random_state.permutation(len(y))
+
+    for case in cases:
+        if len(survivors) == 1:
+            break
+        # execute only works with 2 dimensional arrays :/
+        x = np.vstack((X[case], X[case]))
+        errors = [p.execute(x)[0] - y[case] for p in survivors]
+
+        MAD = np.median(np.abs(errors - np.median(errors)))
+
+        if greater_is_better:
+            treshold = max(errors) - MAD
+            survivors = [p for k, p in enumerate(survivors) if errors[k] >= treshold]
+        else :
+            treshold = min(errors) + MAD
+            survivors = [p for k, p in enumerate(survivors) if errors[k] <= treshold]
+                
+    parent_index = parents.index(random_state.choice(survivors))
+    print(parent_index)
+    return parents[parent_index], parent_index

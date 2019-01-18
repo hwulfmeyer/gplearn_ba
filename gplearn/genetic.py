@@ -26,7 +26,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
-from .selection import make_selection, _Selection, _tournament, _paretogp
+from .selection import make_selection, _Selection, _tournament, _paretogp, _eplex
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -70,6 +70,11 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
                             greater_is_better = metric.greater_is_better,
                             tournament_size = tournament_size)
 
+    secondselection = make_selection(function=_eplex,
+                            parents = parents,
+                            greater_is_better = metric.greater_is_better,
+                            X=X,
+                            y=y)
     # Build programs
     programs = []
 
