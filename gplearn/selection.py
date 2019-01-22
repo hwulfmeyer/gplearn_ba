@@ -87,7 +87,7 @@ def _eplex(random_state, parents, greater_is_better, X, y):
             break
         # execute only works with 2 dimensional arrays :/
         x = np.vstack((X[case], X[case]))
-        errors = [p.execute(x)[0] - y[case] for p in survivors]
+        errors = [p.execute(x)[0] - y[case] for p in survivors] # <= very performance heavy
 
         MAD = np.median(np.abs(errors - np.median(errors)))
 
@@ -99,5 +99,7 @@ def _eplex(random_state, parents, greater_is_better, X, y):
             survivors = [p for k, p in enumerate(survivors) if errors[k] <= treshold]
                 
     parent_index = parents.index(random_state.choice(survivors))
-    print(parent_index)
     return parents[parent_index], parent_index
+
+_selection_map = {'tournament': _tournament,
+                    'eplex': _eplex}

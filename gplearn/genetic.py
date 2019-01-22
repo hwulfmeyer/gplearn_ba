@@ -41,6 +41,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     n_samples, n_features = X.shape
     # Unpack parameters
     tournament_size = params['tournament_size']
+    selection = params['selection']
     function_set = params['function_set']
     arities = params['arities']
     init_depth = params['init_depth']
@@ -55,26 +56,25 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
 
     max_samples = int(max_samples * n_samples)
 
-    if len(paretofront) == 0:
-        firstselection = make_selection(function=_tournament,
-                            parents = parents,
-                            greater_is_better = metric.greater_is_better,
-                            tournament_size = tournament_size)
-    else:
+    if selection == 'tournament':
+        secondselection = make_selection(function=_tournament,
+                                parents = parents,
+                                greater_is_better = metric.greater_is_better,
+                                tournament_size = tournament_size)
+    elif selection == 'eplex':
+        secondselection = make_selection(function=_eplex,
+                                parents = parents,
+                                greater_is_better = metric.greater_is_better,
+                                X=X,
+                                y=y)
+
+    if len(paretofront) > 0:
         firstselection = make_selection(function=_paretogp,
-                            paretofront = paretofront)
+                    paretofront = paretofront)
+    else:
+        firstselection = secondselection
 
 
-    secondselection = make_selection(function=_tournament,
-                            parents = parents,
-                            greater_is_better = metric.greater_is_better,
-                            tournament_size = tournament_size)
-
-    secondselection = make_selection(function=_eplex,
-                            parents = parents,
-                            greater_is_better = metric.greater_is_better,
-                            X=X,
-                            y=y)
     # Build programs
     programs = []
 
@@ -271,6 +271,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  paretogp=False,
                  paretogp_lengths = (3, 100),
                  paretogp_cmplxty = 'length',
+                 selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=4,
                  stopping_criteria=0.0,
@@ -299,6 +300,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.paretogp = paretogp
         self.paretogp_lengths = paretogp_lengths
         self.paretogp_cmplxty = paretogp_cmplxty
+        self.selection = selection
         self.tournament_size = tournament_size
         self.elitism_size = elitism_size
         self.stopping_criteria = stopping_criteria
@@ -445,6 +447,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         if self.paretogp_cmplxty not in ('length','kommenda'):
             raise ValueError('Unsupported complexity measure: %s' % self.paretogp_cmplxty)
 
+        if self.selection not in ('tournament', 'eplex'):
+            raise ValueError('Unsupported complexity measure: %s' % self.selection)
+        
         self._method_probs = np.array([self.p_crossover,
                                        self.p_subtree_mutation,
                                        self.p_hoist_mutation,
@@ -931,6 +936,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  paretogp=False,
                  paretogp_lengths = (3, 100),
                  paretogp_cmplxty = 'length',
+                 selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=1,
                  stopping_criteria=0.0,
@@ -957,6 +963,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             paretogp=paretogp,
             paretogp_lengths = paretogp_lengths,
             paretogp_cmplxty = paretogp_cmplxty,
+            selection = selection,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
@@ -1222,6 +1229,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  paretogp=False,
                  paretogp_lengths = (3, 100),
                  paretogp_cmplxty = 'length',
+                 selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=1,
                  stopping_criteria=1.0,
@@ -1250,6 +1258,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             paretogp=paretogp,
             paretogp_lengths = paretogp_lengths,
             paretogp_cmplxty = paretogp_cmplxty,
+            selection = selection,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
             stopping_criteria=stopping_criteria,
