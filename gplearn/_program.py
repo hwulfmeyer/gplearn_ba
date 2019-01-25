@@ -497,8 +497,8 @@ class _Program(object):
             The raw fitness of the program.
 
         """
-        y_pred = self.execute(X)
-        raw_fitness = self.metric(y, y_pred, sample_weight)
+        self._y_pred = self.execute(X)
+        raw_fitness = self.metric(y, self._y_pred, sample_weight)
 
         return raw_fitness
 
@@ -519,7 +519,7 @@ class _Program(object):
         """
         if parsimony_coefficient is None:
             parsimony_coefficient = self.parsimony_coefficient
-        penalty = parsimony_coefficient * len(self.program) * self.metric.sign
+        penalty = parsimony_coefficient * self.complexity() * self.metric.sign
         return self.raw_fitness_ - penalty
 
     def get_subtree(self, random_state, program=None):

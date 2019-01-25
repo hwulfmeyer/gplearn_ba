@@ -26,7 +26,7 @@ from sklearn.utils.validation import check_X_y, check_array
 
 from ._program import _Program
 from .fitness import _fitness_map, _Fitness
-from .selection import make_selection, _Selection, _tournament, _paretogp, _eplex
+from .selection import make_selection, _selection_map, _paretogp
 from .functions import _function_map, _Function
 from .utils import _partition_estimators
 from .utils import check_random_state, NotFittedError
@@ -46,7 +46,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     arities = params['arities']
     init_depth = params['init_depth']
     init_method = params['init_method']
-    cmplxty_measure = params['paretogp_cmplxty']
+    complexity = params['complexity']
     const_range = params['const_range']
     metric = params['_metric']
     parsimony_coefficient = params['parsimony_coefficient']
@@ -57,12 +57,12 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     max_samples = int(max_samples * n_samples)
 
     if selection == 'tournament':
-        secondselection = make_selection(function=_tournament,
+        secondselection = make_selection(function=_selection_map[selection],
                                 parents = parents,
                                 greater_is_better = metric.greater_is_better,
                                 tournament_size = tournament_size)
     elif selection == 'eplex':
-        secondselection = make_selection(function=_eplex,
+        secondselection = make_selection(function=_selection_map[selection],
                                 parents = parents,
                                 greater_is_better = metric.greater_is_better,
                                 X=X,
@@ -127,7 +127,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
                            arities=arities,
                            init_depth=init_depth,
                            init_method=init_method,
-                           cmplxty_measure=cmplxty_measure,
+                           complexity=complexity,
                            n_features=n_features,
                            metric=metric,
                            const_range=const_range,
@@ -270,7 +270,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  generations=20,
                  paretogp=False,
                  paretogp_lengths = (3, 100),
-                 paretogp_cmplxty = 'length',
+                 complexity = 'length',
                  selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=4,
@@ -299,7 +299,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.generations = generations
         self.paretogp = paretogp
         self.paretogp_lengths = paretogp_lengths
-        self.paretogp_cmplxty = paretogp_cmplxty
+        self.complexity = complexity
         self.selection = selection
         self.tournament_size = tournament_size
         self.elitism_size = elitism_size
@@ -443,9 +443,11 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             else:
                 self._metric = _fitness_map[self.metric]
+        if self.paretogp not in (True, False):
+            raise ValueError('Unsupported paretogp setting: %s' % self.paretogp)
 
-        if self.paretogp_cmplxty not in ('length','kommenda'):
-            raise ValueError('Unsupported complexity measure: %s' % self.paretogp_cmplxty)
+        if self.complexity not in ('length','kommenda'):
+            raise ValueError('Unsupported complexity measure: %s' % self.complexity)
 
         if self.selection not in ('tournament', 'eplex'):
             raise ValueError('Unsupported complexity measure: %s' % self.selection)
@@ -935,7 +937,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  generations=20,
                  paretogp=False,
                  paretogp_lengths = (3, 100),
-                 paretogp_cmplxty = 'length',
+                 complexity = 'length',
                  selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=1,
@@ -962,7 +964,7 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             generations=generations,
             paretogp=paretogp,
             paretogp_lengths = paretogp_lengths,
-            paretogp_cmplxty = paretogp_cmplxty,
+            complexity = complexity,
             selection = selection,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
@@ -1228,7 +1230,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  generations=20,
                  paretogp=False,
                  paretogp_lengths = (3, 100),
-                 paretogp_cmplxty = 'length',
+                 complexity = 'length',
                  selection = 'tournament',
                  tournament_size = 20,
                  elitism_size=1,
@@ -1257,7 +1259,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             generations=generations,
             paretogp=paretogp,
             paretogp_lengths = paretogp_lengths,
-            paretogp_cmplxty = paretogp_cmplxty,
+            complexity = complexity,
             selection = selection,
             tournament_size = tournament_size,
             elitism_size=elitism_size,
