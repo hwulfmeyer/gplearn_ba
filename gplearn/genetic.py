@@ -127,7 +127,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
                            arities=arities,
                            init_depth=init_depth,
                            init_method=init_method,
-                           complexity=complexity,
+                           cmplxty_measure=complexity,
                            n_features=n_features,
                            metric=metric,
                            const_range=const_range,
@@ -595,9 +595,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 for p in paretofront:
                     popforparetogp.append(p)
                 paretofront = _paretofront_efficient(popforparetogp)
-                # NSGA:
+                # NSGA (NOT paretogp):
                 # 1. calc rank & distance on parents (NSGA2)
-                # 2. create children by tourament on rank & distance (crossover & mutate children as well)
+                # 2. create children by tournament on rank & distance (crossover & mutate children as well)
                 # 3. merge children & parents
                 # 4. calc rank & distance on merge pop (NSGA2)
                 # 5. add fronts until population full, then select by distance
