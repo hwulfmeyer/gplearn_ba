@@ -165,8 +165,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
 
 def _paretofront_efficient(parents):
     """Thanks to https://stackoverflow.com/a/40239615/7490089"""
-    ndigits = 5
-    parentspareto = np.array([[round(parents[i].raw_fitness_, ndigits), parents[i].complexity_] for i in range(len(parents))])
+    parentspareto = np.array([[float("{:.3e}".format(parents[i].raw_fitness_)), parents[i].complexity()] for i in range(len(parents))])
     is_front = np.ones(parentspareto.shape[0], dtype = bool)
     for index, p in enumerate(parentspareto):
         if is_front[index]:
