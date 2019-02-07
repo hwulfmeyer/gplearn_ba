@@ -538,7 +538,6 @@ class _Program(object):
         -------
         start, end : tuple of two ints
             The indices of the start and end of the random subtree.
-
         """
         if program is None:
             program = self.program

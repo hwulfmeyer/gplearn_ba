@@ -13,6 +13,7 @@ import numbers
 import numpy as np
 from scipy.stats import rankdata
 from sklearn.externals import six
+from sklearn.metrics import r2_score
 
 __all__ = ['make_fitness']
 
@@ -123,6 +124,11 @@ def _root_mean_square_error(y, y_pred, w):
     """Calculate the root mean square error."""
     return np.sqrt(np.average(((y_pred - y) ** 2), weights=w))
 
+def _r2score(y, y_pred, w):
+    # for some reason not doing -1.0 causes issues
+    # changing the values to positive with *-1, seems to do more stable
+    return (r2_score(y_true=y, y_pred=y_pred, sample_weight=w) - 1.0) * -1
+
 
 weighted_pearson = make_fitness(function=_weighted_pearson,
                                 greater_is_better=True)
@@ -134,9 +140,12 @@ mean_square_error = make_fitness(function=_mean_square_error,
                                  greater_is_better=False)
 root_mean_square_error = make_fitness(function=_root_mean_square_error,
                                       greater_is_better=False)
+r2score = make_fitness(function=_r2score,
+                                      greater_is_better=False)
 
 _fitness_map = {'pearson': weighted_pearson,
                 'spearman': weighted_spearman,
                 'mean absolute error': mean_absolute_error,
                 'mse': mean_square_error,
-                'rmse': root_mean_square_error}
+                'rmse': root_mean_square_error,
+                'r2': r2score}

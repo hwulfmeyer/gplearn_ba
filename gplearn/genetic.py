@@ -163,13 +163,16 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     return programs
 
 
-def _paretofront_efficient(parents):
+def _paretofront_efficient(parents, greater_is_better):
     """Thanks to https://stackoverflow.com/a/40239615/7490089"""
     parentspareto = np.array([[float("{:.3e}".format(parents[i].raw_fitness_)), parents[i].complexity()] for i in range(len(parents))])
     is_front = np.ones(parentspareto.shape[0], dtype = bool)
     for index, p in enumerate(parentspareto):
         if is_front[index]:
-            is_front[is_front] = np.any(parentspareto[is_front]<p, axis=1)  # Remove dominated points
+            if greater_is_better:
+                is_front[is_front] = np.any(parentspareto[is_front]>p, axis=1)  # Remove dominated points
+            else:
+                is_front[is_front] = np.any(parentspareto[is_front]<p, axis=1)  # Remove dominated points
             is_front[index] = True
     paretofront = []
     for index, p in enumerate(parents):
@@ -433,7 +436,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             self._metric = self.metric
         elif isinstance(self, RegressorMixin):
             if self.metric not in ('mean absolute error', 'mse', 'rmse',
-                                   'pearson', 'spearman'):
+                                   'pearson', 'spearman', 'r2'):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             else:
                 self._metric = _fitness_map[self.metric]
@@ -593,7 +596,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                         popforparetogp.append(p)
                 for p in paretofront:
                     popforparetogp.append(p)
-                paretofront = _paretofront_efficient(popforparetogp)
+                paretofront = _paretofront_efficient(popforparetogp, self._metric.greater_is_better)
                 # NSGA (NOT paretogp):
                 # 1. calc rank & distance on parents (NSGA2)
                 # 2. create children by tournament on rank & distance (crossover & mutate children as well)
