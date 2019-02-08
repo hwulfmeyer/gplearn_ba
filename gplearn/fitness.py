@@ -125,9 +125,7 @@ def _root_mean_square_error(y, y_pred, w):
     return np.sqrt(np.average(((y_pred - y) ** 2), weights=w))
 
 def _r2score(y, y_pred, w):
-    # for some reason not doing -1.0 causes issues
-    # changing the values to positive with *-1, seems to do more stable
-    return (r2_score(y_true=y, y_pred=y_pred, sample_weight=w) - 1.0) * -1
+    return r2_score(y_true=y, y_pred=y_pred, sample_weight=w)
 
 
 weighted_pearson = make_fitness(function=_weighted_pearson,
@@ -141,7 +139,7 @@ mean_square_error = make_fitness(function=_mean_square_error,
 root_mean_square_error = make_fitness(function=_root_mean_square_error,
                                       greater_is_better=False)
 r2score = make_fitness(function=_r2score,
-                                      greater_is_better=False)
+                                      greater_is_better=True)
 
 _fitness_map = {'pearson': weighted_pearson,
                 'spearman': weighted_spearman,

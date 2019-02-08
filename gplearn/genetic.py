@@ -164,95 +164,17 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
 
 
 def _paretofront_efficient(parents, greater_is_better):
-    """Thanks to https://stackoverflow.com/a/40239615/7490089"""
     parentspareto = np.array([[float("{:.3e}".format(parents[i].raw_fitness_)), parents[i].complexity()] for i in range(len(parents))])
     is_front = np.ones(parentspareto.shape[0], dtype = bool)
     for index, p in enumerate(parentspareto):
         if is_front[index]:
             if greater_is_better:
-                is_front[is_front] = np.any(parentspareto[is_front]>p, axis=1)  # Remove dominated points
+                is_front[is_front] = np.where(parentspareto[:,0][is_front] > p[0], True, False) | np.where(parentspareto[:,1][is_front] < p[1], True, False)
             else:
-                is_front[is_front] = np.any(parentspareto[is_front]<p, axis=1)  # Remove dominated points
+                is_front[is_front] = np.where(parentspareto[:,0][is_front] < p[0], True, False) | np.where(parentspareto[:,1][is_front] < p[1], True, False)
             is_front[index] = True
-    paretofront = []
-    for index, p in enumerate(parents):
-        if is_front[index]:
-            paretofront.append(p)
+    paretofront = [p for index, p in enumerate(parents) if is_front[index]]
     return paretofront
-
-# deprecated
-def _paretofront(parents):
-    """ private function for nsga2 to calculate rank & distance"""
-    # calc rank & create fronts
-    # [[parent0, domination-list1, dominated by counter2, rank3, dist4, index5, samedom6], [...]]
-    same = 0
-    ndigits = 5
-    parents_nsga = [[parents[i], [], 0,-1, 0, i, False] for i in range(len(parents))]
-    firstfront = []
-    for A in parents_nsga:
-        for B in parents_nsga:
-            if A != B:
-            # check domination
-                if round(A[0].raw_fitness_, ndigits) == round(B[0].raw_fitness_, ndigits) and A[0].length_ == B[0].length_:
-                    if not A[6]:
-                        A[1].append(B)
-                        B[6] = True
-                        same += 1
-                    elif not B[6]:
-                        A[2] = A[2] + 1
-                elif round(B[0].raw_fitness_, ndigits) >= round(A[0].raw_fitness_, ndigits) and B[0].length_ >= A[0].length_:
-                        # A dominates B
-                        A[1].append(B)
-                elif round(B[0].raw_fitness_, ndigits) <= round(A[0].raw_fitness_, ndigits) and B[0].length_ <= A[0].length_:
-                        # B dominates A
-                        A[2] = A[2] + 1
-
-        if A[2] == 0:
-            A[3] = 0
-            firstfront.append(A[0])
-    """
-    prfronts = []
-    prfronts.append(firstfront)
-    i = 0
-    while len(prfronts[i]) != 0:
-        nextfront = []
-        for A in prfronts[i]:
-            for B in A[1]:
-                B[2] = B[2] - 1
-                if B[2] == 0:
-                    B[3] = i + 1
-                    nextfront.append(B)
-        i = i + 1
-        prfronts.append(nextfront)
-    prfronts.pop()
-    for p in parents_nsga:
-        p[1] = None
-    """
-    return firstfront
-
-# deprecated
-def _nsga2_cdist(parents_nsga, prfronts):
-        ### 2. crowding distance
-    for front in prfronts:
-        front = sorted(front, key=lambda A: A[0].raw_fitness_)
-        front[0][4] = np.finfo(np.float).max
-        front[-1][4] = np.finfo(np.float).max
-        normalizer = 1
-        if front[-1][0].raw_fitness_ - front[0][0].raw_fitness_ != 0:
-            normalizer = front[-1][0].raw_fitness_ - front[0][0].raw_fitness_
-        for i in range(1, len(front)-1):
-            front[i][4] = front[i][4] + (front[i+1][0].raw_fitness_ - front[i-1][0].raw_fitness_) / normalizer
-
-        front = sorted(front, key=lambda A: A[0].length_)
-        front[0][4] = np.finfo(np.float).max
-        front[-1][4] = np.finfo(np.float).max
-        normalizer = 1
-        if front[-1][0].length_ - front[0][0].length_ != 0:
-            normalizer = front[-1][0].length_ - front[0][0].length_
-        for i in range(1, len(front)-1):
-            front[i][4] = front[i][4] + (front[i+1][0].length_ - front[i-1][0].length_) / normalizer
-    
-    return parents_nsga, prfronts
 
 
 class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
@@ -678,14 +600,15 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 self._verbose_reporter(self.run_details_)
 
             # Check for early stopping
-            if self._metric.greater_is_better:
-                best_fitness = fitness[np.argmax(fitness)]
-                if best_fitness >= self.stopping_criteria:
-                    break
-            else:
-                best_fitness = fitness[np.argmin(fitness)]
-                if best_fitness <= self.stopping_criteria:
-                    break
+            if self.stopping_criteria is not None:
+                if self._metric.greater_is_better:
+                    best_fitness = fitness[np.argmax(fitness)]
+                    if best_fitness >= self.stopping_criteria:
+                        break
+                else:
+                    best_fitness = fitness[np.argmin(fitness)]
+                    if best_fitness <= self.stopping_criteria:
+                        break
 
 
         if isinstance(self, RegressorMixin):

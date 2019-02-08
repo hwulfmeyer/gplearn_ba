@@ -82,8 +82,9 @@ def _paretogp(random_state, paretofront, save):
 
 def _eplex(random_state, parents, greater_is_better, X, y, save):
     survivors = np.arange(len(parents))
-    cases = random_state.permutation(len(y))
-
+    #cases = random_state.permutation(len(y))
+    size = 40 if len(y) > 40 else len(y)
+    cases = random_state.randint(len(y), size=size)
     if save is None:
         errorsall = np.zeros((len(parents), len(y)))   
         for i, p in enumerate(parents):
@@ -92,7 +93,7 @@ def _eplex(random_state, parents, greater_is_better, X, y, save):
         save = errorsall
     else:
         errorsall = save
-
+    i = 0
     for case in cases:
         if len(survivors) == 1:
             break
@@ -101,7 +102,8 @@ def _eplex(random_state, parents, greater_is_better, X, y, save):
         MAD = np.median(np.abs(errors - np.median(errors)))
         treshold = min(errors) + MAD
         survivors = [k for i, k in enumerate(survivors) if errors[i] <= treshold]
-    
+        i += 1
+
     parent_index = random_state.choice(survivors)
     return parents[parent_index], parent_index, save
 
