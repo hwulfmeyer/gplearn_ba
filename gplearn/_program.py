@@ -581,10 +581,12 @@ class _Program(object):
             The flattened tree representation of the program.
 
         """
-        # Get a subtree to replace
-        start, end = self.get_subtree(random_state)
         # Get a subtree to donate
         donor_start, donor_end = self.get_subtree(random_state, donor)
+
+        # Get a subtree to replace
+        start, end = self.get_subtree(random_state)
+
         # Insert genetic material from donor
         return (self.program[:start] +
                 donor[donor_start:donor_end] +

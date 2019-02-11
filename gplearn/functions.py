@@ -14,6 +14,8 @@ from sklearn.externals import six
 
 __all__ = ['make_function']
 
+_EPS = np.finfo(np.float64).eps # Used by protected functions
+
 
 class _Function(object):
 
@@ -108,8 +110,8 @@ def make_function(function, name, arity):
 
 def _protected_division(x1, x2):
     """Closure of division (x1/x2) for zero denominator."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x2) > .0, np.divide(x1, x2), 1.)
+    abs_x2 = np.abs(x2, dtype=np.float64)
+    return np.sign(x2) * np.divide(x1, abs_x2 + _EPS)
 
 
 def _protected_sqrt(x1):
@@ -119,14 +121,14 @@ def _protected_sqrt(x1):
 
 def _protected_log(x1):
     """Closure of log for zero arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > .0, np.log(np.abs(x1)), 0.)
+    abs_x1 = np.abs(x1, dtype=np.float64)
+    return np.log(abs_x1 + _EPS)
 
 
 def _protected_inverse(x1):
     """Closure of log for zero arguments."""
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(np.abs(x1) > .0, 1. / x1, 0.)
+    return _protected_division(1.0, x1)
+    
 
 add2 = make_function(function=np.add, name='add', arity=2)
 sub2 = make_function(function=np.subtract, name='sub', arity=2)
