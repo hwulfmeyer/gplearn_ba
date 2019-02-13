@@ -256,12 +256,12 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
         """
         if run_details is None:
-            print('    |{:^25}|{:^42}|'.format('Population Average',
+            print('    |{:^38}|{:^38}|'.format('Population Average',
                                                'Best Individual'))
-            print('-' * 4 + ' ' + '-' * 25 + ' ' + '-' * 42 + ' ' + '-' * 10)
-            line_format = '{:>4} {:>8} {:>16} {:>8} {:>16} {:>16} {:>10}'
-            print(line_format.format('Gen', 'Complexity', 'Fitness', 'Complexity',
-                                     'Fitness', 'OOB Fitness', 'Time Left'))
+            print('-' * 4 + ' ' + '-' * 38 + ' ' + '-' * 38 + ' ' + '-' * 10)
+            line_format = '{:<4} {:<12} {:<12} {:<14} {:<12} {:<12} {:<14} {:<12} {:<10}'
+            print(line_format.format('Gen', 'Length', 'Kommenda', 'Fitness', 'Length', 'Kommenda', 
+                                     'Fitness', 'Time Left', 'Front Size'))
 
         else:
             # Estimate remaining time for run
@@ -273,20 +273,17 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             else:
                 remaining_time = '{0:.2f}s'.format(remaining_time)
 
-            oob_fitness = 'N/A'
-            line_format = '{:4d} {:8.2e} {:16g} {:8.2e} {:16g} {:>16} {:>10}'
-            if self.max_samples < 1.0:
-                oob_fitness = run_details['best_oob_fitness'][-1]
-                line_format = '{:4d} {:8.2e} {:16g} {:8.2e} {:16g} {:16g} {:>10}'
+            line_format = '{:<4d} {:<12.3e} {:<12.3e} {:<14.3e} {:<12.3e} {:<12.3e} {:<14.3e} {:<12} {:<10}'
 
             print(line_format.format(run_details['generation'][-1],
                                      run_details['average_length'][-1],
+                                     run_details['average_kommenda'][-1],
                                      run_details['average_fitness'][-1],
                                      run_details['best_length'][-1],
                                      run_details['best_fitness'][-1],
-                                     oob_fitness,
-                                     remaining_time),
-                                     run_details['front_size'][-1])
+                                     run_details['best_kommenda'][-1],
+                                     remaining_time,
+                                     run_details['front_size'][-1]))
 
     def fit(self, X, y, sample_weight=None):
         """Fit the Genetic Program according to X, y.
@@ -416,10 +413,11 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             self._paretofronts = []
             self.run_details_ = {'generation': [],
                                  'average_length': [],
+                                 'average_kommenda':[],
                                  'average_fitness': [],
                                  'best_length': [],
+                                 'best_kommenda': [],
                                  'best_fitness': [],
-                                 'best_oob_fitness': [],
                                  'generation_time': [],
                                  'front_size': []}
 
@@ -529,7 +527,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
             # Reduce, maintaining order across different n_jobs
             population = list(itertools.chain.from_iterable(population))
             fitness = [program.raw_fitness_ for program in population]
-            length = [program.complexity() for program in population]
+            length = [program.length_ for program in population]
+            kommenda = [program.kommenda_ for program in population]
 
             parsimony_coefficient = None
             if self.parsimony_coefficient == 'auto':
@@ -585,13 +584,11 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             self.run_details_['generation'].append(gen)
             self.run_details_['average_length'].append(np.mean(length))
+            self.run_details_['average_kommenda'].append(np.mean(kommenda))
             self.run_details_['average_fitness'].append(np.mean(fitness))
-            self.run_details_['best_length'].append(best_program.complexity())
+            self.run_details_['best_length'].append(best_program.length_)
+            self.run_details_['best_kommenda'].append(best_program.kommenda_)
             self.run_details_['best_fitness'].append(best_program.raw_fitness_)
-            oob_fitness = np.nan
-            if self.max_samples < 1.0:
-                oob_fitness = best_program.oob_fitness_
-            self.run_details_['best_oob_fitness'].append(oob_fitness)
             generation_time = time() - start_time
             self.run_details_['generation_time'].append(generation_time)
             self.run_details_['front_size'].append(len(paretofront))

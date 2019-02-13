@@ -703,8 +703,9 @@ class _Program(object):
         if self.cmplxty_measure == 'length':
             return self.length_
         elif self.cmplxty_measure == 'kommenda':
-            return self._complexityKommenda()
+            return self.kommenda_
     
     depth_ = property(_depth)
     length_ = property(_length)
+    kommenda_ = property(_complexityKommenda)
     indices_ = property(_indices)
