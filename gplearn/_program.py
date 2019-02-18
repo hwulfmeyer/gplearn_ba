@@ -17,6 +17,7 @@ from sklearn.utils.random import sample_without_replacement
 from .functions import _Function
 from .utils import check_random_state
 
+MAX_FLOAT = np.finfo(np.float64).max
 
 class _Program(object):
 
@@ -371,7 +372,11 @@ class _Program(object):
             if isinstance(node, _Function):
                 arities.append(node.arity)
                 ops.append(node.name)
-        return eval(output)
+        try:
+            output_value = eval(output)
+        except:
+            output_value = MAX_FLOAT
+        return output_value
 
     def _length(self):
         """Calculates the number of functions and terminals in the program."""
