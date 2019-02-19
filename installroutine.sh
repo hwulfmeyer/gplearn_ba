@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pip uninstall gplearn && python setup.py install --user
+pip3 uninstall gplearn && python3 setup.py install --user
