@@ -280,8 +280,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                                      run_details['average_kommenda'][-1],
                                      run_details['average_fitness'][-1],
                                      run_details['best_length'][-1],
-                                     run_details['best_fitness'][-1],
                                      run_details['best_kommenda'][-1],
+                                     run_details['best_fitness'][-1],
                                      remaining_time,
                                      run_details['front_size'][-1]))
 
