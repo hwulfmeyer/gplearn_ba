@@ -16,7 +16,6 @@ from warnings import warn
 from heapq import nlargest
 from heapq import nsmallest
 from copy import deepcopy
-
 import numpy as np
 from scipy.stats import rankdata
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
@@ -284,7 +283,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                                      run_details['best_fitness'][-1],
                                      remaining_time,
                                      run_details['front_size'][-1]))
-
+    
     def fit(self, X, y, sample_weight=None):
         """Fit the Genetic Program according to X, y.
 
@@ -517,6 +516,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                 for p in paretofront:
                     popforparetogp.append(p)
                 paretofront = _paretofront_efficient(popforparetogp, self._metric.greater_is_better)
+
                 # NSGA (NOT paretogp):
                 # 1. calc rank & distance on parents (NSGA2)
                 # 2. create children by tournament on rank & distance (crossover & mutate children as well)

@@ -9,11 +9,9 @@ computer program. It is used for creating and evolving programs used in the
 #
 # License: BSD 3 clause
 
-from copy import deepcopy
-
+from copy import copy
 import numpy as np
 from sklearn.utils.random import sample_without_replacement
-
 from .functions import _Function
 from .utils import check_random_state
 
@@ -153,6 +151,7 @@ class _Program(object):
         self._max_samples = None
         self._indices_state = None
 
+
     def build_program(self, random_state):
         """Build a naive random program.
 
@@ -213,6 +212,7 @@ class _Program(object):
         # We should never get here
         return None
 
+
     def validate_program(self):
         """Rough check that the embedded program in the object is valid."""
         terminals = [0]
@@ -225,6 +225,7 @@ class _Program(object):
                     terminals.pop()
                     terminals[-1] -= 1
         return terminals == [-1]
+
 
     def __str__(self):
         """Overloads `print` output of the object to resemble a LISP tree."""
@@ -247,6 +248,7 @@ class _Program(object):
                 if i != len(self.program) - 1:
                     output += ', '
         return output
+
 
     def export_graphviz(self, fade_nodes=None):
         """Returns a string, Graphviz script for visualizing the program.
@@ -304,6 +306,7 @@ class _Program(object):
         # We should never get here
         return None
 
+
     def _depth(self):
         """Calculates the maximum depth of the program tree."""
         terminals = [0]
@@ -318,6 +321,7 @@ class _Program(object):
                     terminals.pop()
                     terminals[-1] -= 1
         return depth - 1
+
 
     def _complexityKommenda(self):
         """ Calculates the complexity of the program tree.
@@ -378,9 +382,11 @@ class _Program(object):
             output_value = MAX_FLOAT
         return output_value
 
+
     def _length(self):
         """Calculates the number of functions and terminals in the program."""
         return len(self.program)
+
 
     def execute(self, X):
         """Execute the program according to X.
@@ -430,6 +436,7 @@ class _Program(object):
         # We should never get here
         return None
 
+
     def get_all_indices(self, n_samples=None, max_samples=None,
                         random_state=None):
         """Get the indices on which to evaluate the fitness of a program.
@@ -477,9 +484,11 @@ class _Program(object):
 
         return indices, not_indices
 
+
     def _indices(self):
         """Get the indices used to measure the program's fitness."""
         return self.get_all_indices()[0]
+
 
     def raw_fitness(self, X, y, sample_weight):
         """Evaluate the raw fitness of the program according to X, y.
@@ -507,6 +516,7 @@ class _Program(object):
 
         return raw_fitness
 
+
     def fitness(self, parsimony_coefficient=None):
         """Evaluate the penalized fitness of the program according to X, y.
 
@@ -526,6 +536,7 @@ class _Program(object):
             parsimony_coefficient = self.parsimony_coefficient
         penalty = parsimony_coefficient * self.complexity() * self.metric.sign
         return self.raw_fitness_ - penalty
+
 
     def get_subtree(self, random_state, program=None):
         """Get a random subtree from the program.
@@ -561,9 +572,11 @@ class _Program(object):
 
         return start, end
 
+
     def reproduce(self):
         """Return a copy of the embedded program."""
-        return deepcopy(self.program)
+        return copy(self.program)
+
 
     def crossover(self, donor, random_state):
         """Perform the crossover genetic operation on the program.
@@ -597,6 +610,7 @@ class _Program(object):
                 donor[donor_start:donor_end] +
                 self.program[end:]), start, donor_start
 
+
     def subtree_mutation(self, random_state):
         """Perform the subtree mutation operation on the program.
 
@@ -622,6 +636,7 @@ class _Program(object):
         chicken = self.build_program(random_state)
         # Do subtree mutation via the headless chicken method!
         return self.crossover(chicken, random_state)
+
 
     def hoist_mutation(self, random_state):
         """Perform the hoist mutation operation on the program.
@@ -652,6 +667,7 @@ class _Program(object):
         removed = list(set(range(start, end)) -
                        set(range(start + sub_start, start + sub_end)))
         return self.program[:start] + hoist + self.program[end:], removed
+    
 
     def point_mutation(self, random_state):
         """Perform the point mutation operation on the program.
@@ -672,7 +688,7 @@ class _Program(object):
             The flattened tree representation of the program.
 
         """
-        program = deepcopy(self.program)
+        program = copy(self.program)
 
         # Get the nodes to modify
         mutate = np.where([True if (random_state.uniform() <
@@ -703,6 +719,7 @@ class _Program(object):
                 program[node] = terminal
 
         return program, list(mutate)
+   
     
     def complexity(self):
         if self.cmplxty_measure == 'length':

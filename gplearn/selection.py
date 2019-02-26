@@ -13,7 +13,6 @@ import numpy as np
 
 __all__ = ['make_selection']
 
-
 class _Selection(object):
 
     """A selection method to get suitable individuals from the population
@@ -30,11 +29,10 @@ class _Selection(object):
         self.function = function
         self.kwargs = kwargs
         self.save = None
-
+        
     def __call__(self, *args):       
         parent, parent_index, self.save = self.function(*args, **self.kwargs, save=self.save)
         return parent, parent_index
-
 
 def make_selection(function, **kwargs):
     """Make a selection method
@@ -78,31 +76,33 @@ def _tournament(random_state, parents, greater_is_better, tournament_size, save)
 def _paretogp(random_state, paretofront, save):
         parent_index = random_state.randint(0, len(paretofront))
         return paretofront[parent_index], parent_index, save
-        
+
 
 def _eplex(random_state, parents, greater_is_better, X, y, save):
+    # semi-dynamic eplex
     survivors = np.arange(len(parents))
     #cases = random_state.permutation(len(y))
     size = int(len(y)/4)
     cases = random_state.randint(len(y), size=size)
     if save is None:
-        errorsall = np.zeros((len(parents), len(y)))   
+        errorsall = np.zeros((len(parents), len(y)))
         for i, p in enumerate(parents):
             penalty = p.parsimony_coefficient * p.complexity()
             errorsall[i] = np.abs(p._y_pred - y) + penalty
-        save = errorsall
+
+        MADS = [np.median(np.abs(errorsall[:,i] - np.median(errorsall[:,i]))) for i in range(len(y))]
+
+        save = (errorsall, MADS)
     else:
-        errorsall = save
-    i = 0
+        errorsall, MADS = save
+        
     for case in cases:
         if len(survivors) == 1:
             break
         curerrorsall = errorsall[:,case]
-        errors = [curerrorsall[k] for k in survivors]
-        MAD = np.median(np.abs(errors - np.median(errors)))
-        treshold = min(errors) + MAD
-        survivors = [k for i, k in enumerate(survivors) if errors[i] <= treshold]
-        i += 1
+        errors = curerrorsall[survivors]
+        treshold = np.min(errors) + MADS[case]
+        survivors = survivors[errors <= treshold]
 
     parent_index = random_state.choice(survivors)
     return parents[parent_index], parent_index, save
