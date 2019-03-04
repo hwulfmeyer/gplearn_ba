@@ -82,7 +82,7 @@ def _eplex(random_state, parents, greater_is_better, X, y, save):
     # semi-dynamic eplex
     survivors = np.arange(len(parents))
     #cases = random_state.permutation(len(y))
-    size = int(len(y)/4)
+    size = len(y) #int(len(y)/4)
     cases = random_state.randint(len(y), size=size)
     if save is None:
         errorsall = np.zeros((len(parents), len(y)))
