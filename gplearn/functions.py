@@ -14,7 +14,7 @@ from sklearn.externals import six
 
 __all__ = ['make_function']
 
-_EPS = np.finfo(np.float64).eps # Used by protected functions
+_EPS = 1e-10 #np.finfo(np.float64).eps
 
 
 class _Function(object):
