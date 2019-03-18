@@ -162,7 +162,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     return programs
 
 
-def _paretofront_efficient(parents, greater_is_better):
+def _paretofront(parents, greater_is_better):
     parentspareto = np.array([[float("{:.3e}".format(parents[i].raw_fitness_)), parents[i].complexity()] for i in range(len(parents))])
     is_front = np.ones(parentspareto.shape[0], dtype = bool)
     for index, p in enumerate(parentspareto):
@@ -515,7 +515,7 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                         popforparetogp.append(p)
                 for p in paretofront:
                     popforparetogp.append(p)
-                paretofront = _paretofront_efficient(popforparetogp, self._metric.greater_is_better)
+                paretofront = _paretofront(popforparetogp, self._metric.greater_is_better)
 
                 # NSGA (NOT paretogp):
                 # 1. calc rank & distance on parents (NSGA2)
