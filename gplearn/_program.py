@@ -330,8 +330,8 @@ class _Program(object):
 
         add,sub     = n1 + n2
         mul,div     = (1+(n1))*(1+(n2))
-        sqrt        = (n1)**1.5
-        sin,cos,tan,exp,log = (n1)**1.3
+        sqrt        = (n1)**1.15
+        sin,cos,tan,exp,log = (n1)**1.25
         variable    = 2
         constant    = 1
         Missing: abs, neg, inv, max, min
@@ -367,9 +367,9 @@ class _Program(object):
                         if ops[-1] in ('mul','div'):
                             output += ')'
                         elif ops[-1] in ('sin','cos','tan','exp','log'):
-                            output += ')**1.3'
+                            output += ')**1.25'
                         elif ops[-1] in 'sqrt':
-                            output += ')**1.5'
+                            output += ')**1.15'
                         arities.pop()
                         ops.pop()
 
@@ -379,6 +379,8 @@ class _Program(object):
         try:
             output_value = eval(output)
         except:
+            output_value = MAX_FLOAT
+        if output_value == float('inf'):
             output_value = MAX_FLOAT
         return output_value
 
