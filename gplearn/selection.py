@@ -77,7 +77,6 @@ def _paretogp(random_state, paretofront, save):
         parent_index = random_state.randint(0, len(paretofront))
         return paretofront[parent_index], parent_index, save
 
-
 def _eplex(random_state, parents, greater_is_better, X, y, save):
     # semi-dynamic eplex
     survivors = np.arange(len(parents))
@@ -101,7 +100,8 @@ def _eplex(random_state, parents, greater_is_better, X, y, save):
             break
         curerrorsall = errorsall[:,case]
         errors = curerrorsall[survivors]
-        treshold = np.min(errors) + MADS[case]
+        treshold = np.min(errors)
+        treshold = treshold + MADS[case]
         survivors = survivors[errors <= treshold]
 
     parent_index = random_state.choice(survivors)
