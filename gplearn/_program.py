@@ -12,7 +12,7 @@ computer program. It is used for creating and evolving programs used in the
 from copy import copy
 import numpy as np
 from sklearn.utils.random import sample_without_replacement
-from .functions import _Function
+from .functions import _Function, _function_map
 from .utils import check_random_state
 
 MAX_FLOAT = np.finfo(np.float64).max
@@ -330,7 +330,7 @@ class _Program(object):
 
         add,sub     = n1 + n2
         mul,div     = (1+(n1))*(1+(n2))
-        sqrt        = (n1)**1.15
+        sqrt,sig        = (n1)**1.15
         sin,cos,tan,exp,log = (n1)**1.25
         variable    = 2
         constant    = 1
@@ -349,7 +349,7 @@ class _Program(object):
             if isinstance(node, _Function):
                 if node.name in ('mul','div'):
                     output += '(1+'
-                elif node.name in ('sqrt'):
+                elif node.name in ('sqrt','sig'):
                     output += '('
                 elif node.name in ('sin','cos','tan','exp','log'):
                     output += '('
@@ -368,7 +368,7 @@ class _Program(object):
                             output += ')'
                         elif ops[-1] in ('sin','cos','tan','exp','log'):
                             output += ')**1.25'
-                        elif ops[-1] in 'sqrt':
+                        elif ops[-1] in ('sqrt','sig'):
                             output += ')**1.15'
                         arities.pop()
                         ops.pop()
@@ -722,7 +722,26 @@ class _Program(object):
 
         return program, list(mutate)
    
+
+    def gs_crossover(self, donor, random_state):
+        # implements geometric semantic crossover
+        # => TC = (T1 * Tr) + (T2 * (1-Tr))
+        # where Tr = random in [0,1], T1=self, T2=donor
+        selfprogram = copy(self.program)
+        donorprogram = copy(self.program)
+        tr = random_state.uniform()
+        return [_function_map['add'],_function_map['mul']]+selfprogram+[tr,_function_map['mul'],1-tr]+donorprogram
     
+    def gs_mutation(self, ms, seeds):
+        # implements geometric semantic mutation
+        # => TM = T + ms * (TrA - TrB)
+        # where TrA,TrB = random functions with codomain [0,1], T=self, ms=mutation step in [0,1]
+        trA = self.build_program(check_random_state(seeds[0]))
+        trB = self.build_program(check_random_state(seeds[1]))
+        program = copy(self.program)
+        return [_function_map['add']]+program+[_function_map['mul'],ms,_function_map['sub']]+trA+trB
+
+
     def complexity(self):
         if self.cmplxty_measure == 'length':
             return self.length_

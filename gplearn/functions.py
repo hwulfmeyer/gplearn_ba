@@ -130,7 +130,7 @@ def _protected_log(x1):
 def _protected_inverse(x1):
     """Closure of log for zero arguments."""
     return _protected_division(1.0, x1)
-    
+
 
 add2 = make_function(function=np.add, name='add', arity=2)
 sub2 = make_function(function=np.subtract, name='sub', arity=2)

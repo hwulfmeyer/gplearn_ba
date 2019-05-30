@@ -50,6 +50,7 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
     metric = params['_metric']
     parsimony_coefficient = params['parsimony_coefficient']
     method_probs = params['method_probs']
+    gs_mutationstep = params['gs_mutationstep']
     p_point_replace = params['p_point_replace']
     max_samples = params['max_samples']
 
@@ -115,6 +116,19 @@ def _parallel_evolve(n_programs, parents, paretofront, X, y, sample_weight, seed
                 genome = {'method': 'Point Mutation',
                           'parent_idx': parent_index,
                           'parent_nodes': mutated}
+            elif method < method_probs[4]:
+                # gs_crossover
+                donor, donor_index = secondselection(random_state)
+                program = parent.gs_crossover(donor.program, random_state)
+                genome = {'method': 'Geometric Crossover',
+                          'parent_idx': parent_index,
+                          'donor_idx': donor_index}
+            elif method < method_probs[5]:
+                # gs_mutation
+                gs_seeds = random_state.randint(MAX_INT, size=2)
+                program = parent.gs_mutation(gs_mutationstep, gs_seeds)
+                genome = {'method': 'Geometric Mutation',
+                          'parent_idx': parent_index}            
             else:
                 # reproduction
                 program = parent.reproduce()
@@ -209,6 +223,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                  p_hoist_mutation=0.01,
                  p_point_mutation=0.01,
                  p_point_replace=0.05,
+                 p_gs_crossover=0.0,
+                 p_gs_mutation=0.0,
+                 gs_mutationstep=0.001,
                  max_samples=1.0,
                  warm_start=False,
                  low_memory=False,
@@ -238,6 +255,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.p_hoist_mutation = p_hoist_mutation
         self.p_point_mutation = p_point_mutation
         self.p_point_replace = p_point_replace
+        self.p_gs_crossover = p_gs_crossover,
+        self.p_gs_mutation = p_gs_mutation,
+        self.gs_mutationstep = gs_mutationstep,
         self.max_samples = max_samples
         self.warm_start = warm_start
         self.low_memory = low_memory
@@ -375,7 +395,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self._method_probs = np.array([self.p_crossover,
                                        self.p_subtree_mutation,
                                        self.p_hoist_mutation,
-                                       self.p_point_mutation])
+                                       self.p_point_mutation,
+                                       self.p_gs_crossover,
+                                       self.p_gs_mutation])
         self._method_probs = np.cumsum(self._method_probs)
 
         if self._method_probs[-1] > 1:
@@ -879,6 +901,9 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
                  p_hoist_mutation=0.01,
                  p_point_mutation=0.01,
                  p_point_replace=0.05,
+                 p_gs_crossover=0.0,
+                 p_gs_mutation=0.0,
+                 gs_mutationstep=0.001,
                  max_samples=1.0,
                  warm_start=False,
                  low_memory=False,
@@ -906,6 +931,9 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
             p_hoist_mutation=p_hoist_mutation,
             p_point_mutation=p_point_mutation,
             p_point_replace=p_point_replace,
+            p_gs_crossover=p_gs_crossover,
+            p_gs_mutation=p_gs_mutation,
+            gs_mutationstep=gs_mutationstep,
             max_samples=max_samples,
             warm_start=warm_start,
             low_memory=low_memory,
@@ -1172,6 +1200,9 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  p_hoist_mutation=0.01,
                  p_point_mutation=0.01,
                  p_point_replace=0.05,
+                 p_gs_crossover=0.0,
+                 p_gs_mutation=0.0,
+                 gs_mutationstep=0.001,
                  max_samples=1.0,
                  warm_start=False,
                  low_memory=False,
@@ -1201,6 +1232,9 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             p_hoist_mutation=p_hoist_mutation,
             p_point_mutation=p_point_mutation,
             p_point_replace=p_point_replace,
+            p_gs_crossover=p_gs_crossover,
+            p_gs_mutation=p_gs_mutation,
+            gs_mutationstep=gs_mutationstep,
             max_samples=max_samples,
             warm_start=warm_start,
             low_memory=low_memory,
