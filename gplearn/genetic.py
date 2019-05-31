@@ -265,6 +265,9 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.verbose = verbose
         self.random_state = random_state
 
+        if self.paretogp:
+            self.elitism_size = 0
+
     def _verbose_reporter(self, run_details=None):
         """A report of the progress of the evolution process.
 
@@ -548,6 +551,14 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
 
             # Reduce, maintaining order across different n_jobs
             population = list(itertools.chain.from_iterable(population))
+            """if not gen % 5 and gen > 0:
+                for program in population:
+                    if program._length() > 100:
+                        program.simplify_program()
+                for program in paretofront:
+                    if program._length() > 100:
+                        program.simplify_program()"""
+
             fitness = [program.raw_fitness_ for program in population]
             length = [program.length_ for program in population]
             kommenda = [program.kommenda_ for program in population]

@@ -14,8 +14,68 @@ import numpy as np
 from sklearn.utils.random import sample_without_replacement
 from .functions import _Function, _function_map
 from .utils import check_random_state
+from sympy import simplify, cancel
+import math
+import ast
 
 MAX_FLOAT = np.finfo(np.float64).max
+
+class InfToPre(ast.NodeVisitor):
+    # thanks to https://stackoverflow.com/questions/42590512/how-to-convert-from-infix-to-postfix-prefix-using-ast-python-module
+    def __init__(self, orig, expr):
+        self.orig = orig
+        self.expr = expr
+        self.prefix = []
+        self.astInfix = ast.parse(str(self.expr))
+    
+    def transform(self):
+        self.visit(self.astInfix)
+
+    def f_continue(self, node):
+        super(InfToPre, self).generic_visit(node)
+
+    def visit_Add(self, node):
+        self.prefix.append(_function_map['add'])
+        self.f_continue(node)
+
+    def visit_Div(self, node):
+        self.prefix.append(_function_map['div'])
+        self.f_continue(node)
+
+    def visit_Mult(self, node):
+        self.prefix.append(_function_map['mul'])
+        self.f_continue(node)
+
+    def visit_Sub(self, node):
+        self.prefix.append(_function_map['sub'])
+        self.f_continue(node)
+
+    def visit_Name(self, node):
+        if node.id in ('sin','cos','tan','exp','log'):
+            self.prefix.append(_function_map[node.id])
+        elif node.id in('zoo','oo','nan'):
+            self.prefix.append(math.inf)
+        elif 'X' in node.id:
+            # variable
+            self.prefix.append(int(node.id[1:]))
+        self.f_continue(node)
+
+    def visit_Num(self, node):
+        self.prefix.append(node.n)
+        self.f_continue(node)
+
+    def visit_BinOp(self, node):
+        self.visit(node.op)
+        self.visit(node.left)
+        self.visit(node.right)
+
+    def visit_Call(self, node):
+        self.visit(node.func)
+        for arg in node.args:
+            self.visit(arg)
+
+    def visit_Expr(self, node):
+        self.f_continue(node)
 
 class _Program(object):
 
@@ -250,6 +310,51 @@ class _Program(object):
         return output
 
 
+    def InfixExpression(self):
+        arities = []
+        ops = []
+        output = ''
+        for node in self.program:
+            if len(arities) != 0 and arities[-1] == 1:
+                if ops[-1] in ('add'):
+                    output += '+'
+                elif ops[-1] in ('sub'):
+                    output += '-'
+                elif ops[-1] in ('mul'):
+                    output += '*'
+                elif ops[-1] in ('div'):
+                    output += '/'
+
+            if isinstance(node, _Function):
+                if node.name in ('add','sub','mul','div'):
+                    output += '('
+                elif node.name in ('sqrt','sin','cos','tan','exp','log'):
+                    output += node.name + '('
+                if len(arities) != 0:
+                    arities[-1] -= 1
+            else:
+                if isinstance(node, int):
+                    output += 'X' + str(node)
+
+                if isinstance(node, float):
+                    output += str(node)
+
+                if len(arities) != 0:
+                    arities[-1] -= 1
+                    while len(arities) != 0 and arities[-1] == 0:
+                        if ops[-1] in ('add','sub','mul','div'):
+                            output += ')'
+                        elif ops[-1] in ('sqrt','sin','cos','tan','exp','log'):
+                            output += ')'
+                        arities.pop()
+                        ops.pop()
+
+            if isinstance(node, _Function):
+                arities.append(node.arity)
+                ops.append(node.name)
+        return output
+
+
     def export_graphviz(self, fade_nodes=None):
         """Returns a string, Graphviz script for visualizing the program.
 
@@ -349,7 +454,7 @@ class _Program(object):
             if isinstance(node, _Function):
                 if node.name in ('mul','div'):
                     output += '(1+'
-                elif node.name in ('sqrt','sig'):
+                elif node.name in ('sqrt'):
                     output += '('
                 elif node.name in ('sin','cos','tan','exp','log'):
                     output += '('
@@ -368,7 +473,7 @@ class _Program(object):
                             output += ')'
                         elif ops[-1] in ('sin','cos','tan','exp','log'):
                             output += ')**1.25'
-                        elif ops[-1] in ('sqrt','sig'):
+                        elif ops[-1] in ('sqrt'):
                             output += ')**1.15'
                         arities.pop()
                         ops.pop()
@@ -732,6 +837,7 @@ class _Program(object):
         tr = random_state.uniform()
         return [_function_map['add'],_function_map['mul']]+selfprogram+[tr,_function_map['mul'],1-tr]+donorprogram
     
+
     def gs_mutation(self, ms, seeds):
         # implements geometric semantic mutation
         # => TM = T + ms * (TrA - TrB)
@@ -740,6 +846,15 @@ class _Program(object):
         trB = self.build_program(check_random_state(seeds[1]))
         program = copy(self.program)
         return [_function_map['add']]+program+[_function_map['mul'],ms,_function_map['sub']]+trA+trB
+
+
+    def simplify_program(self):
+        expre = self.InfixExpression()
+        expreSim = cancel(expre)
+        expre = InfToPre(expre, expreSim)
+        expre.transform()
+        self.program = expre.prefix
+        self.validate_program()
 
 
     def complexity(self):
