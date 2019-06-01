@@ -58,6 +58,8 @@ class InfToPre(ast.NodeVisitor):
         elif 'X' in node.id:
             # variable
             self.prefix.append(int(node.id[1:]))
+        else:
+            print(node.id)
         self.f_continue(node)
 
     def visit_Num(self, node):
@@ -76,6 +78,7 @@ class InfToPre(ast.NodeVisitor):
 
     def visit_Expr(self, node):
         self.f_continue(node)
+
 
 class _Program(object):
 
@@ -315,7 +318,7 @@ class _Program(object):
         ops = []
         output = ''
         for node in self.program:
-            if len(arities) != 0 and arities[-1] == 1:
+            if len(arities) > 0 and arities[-1] == 1:
                 if ops[-1] in ('add'):
                     output += '+'
                 elif ops[-1] in ('sub'):
@@ -326,12 +329,14 @@ class _Program(object):
                     output += '/'
 
             if isinstance(node, _Function):
-                if node.name in ('add','sub','mul','div'):
-                    output += '('
-                elif node.name in ('sqrt','sin','cos','tan','exp','log'):
-                    output += node.name + '('
-                if len(arities) != 0:
+                if node.name in ('sqrt','sin','cos','tan','exp','log'):
+                    output += node.name
+                output += '('
+                if len(arities) > 0:
                     arities[-1] -= 1
+                
+                arities.append(node.arity)
+                ops.append(node.name)
             else:
                 if isinstance(node, int):
                     output += 'X' + str(node)
@@ -339,19 +344,14 @@ class _Program(object):
                 if isinstance(node, float):
                     output += str(node)
 
-                if len(arities) != 0:
+                if len(arities) > 0:
                     arities[-1] -= 1
-                    while len(arities) != 0 and arities[-1] == 0:
-                        if ops[-1] in ('add','sub','mul','div'):
-                            output += ')'
-                        elif ops[-1] in ('sqrt','sin','cos','tan','exp','log'):
-                            output += ')'
-                        arities.pop()
-                        ops.pop()
+            
+            while len(arities) > 0 and arities[-1] == 0:
+                output += ')'
+                arities.pop()
+                ops.pop()
 
-            if isinstance(node, _Function):
-                arities.append(node.arity)
-                ops.append(node.name)
         return output
 
 
@@ -435,7 +435,7 @@ class _Program(object):
 
         add,sub     = n1 + n2
         mul,div     = (1+(n1))*(1+(n2))
-        sqrt,sig        = (n1)**1.15
+        sqrt        = (n1)**1.15
         sin,cos,tan,exp,log = (n1)**1.25
         variable    = 2
         constant    = 1
@@ -849,11 +849,19 @@ class _Program(object):
 
 
     def simplify_program(self):
+        print(self)
+        print("")
         expre = self.InfixExpression()
+        print(expre)
+        print("")
         expreSim = cancel(expre)
+        print(expreSim)
+        print("")
         expre = InfToPre(expre, expreSim)
         expre.transform()
         self.program = expre.prefix
+        print(self)
+        print("")
         self.validate_program()
 
 

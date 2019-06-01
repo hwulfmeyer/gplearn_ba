@@ -112,7 +112,7 @@ def _protected_division(x1, x2):
     """Closure of division (x1/x2) for zero denominator."""
     with np.errstate(divide='ignore', invalid='ignore'):
         abs_x2 = np.abs(x2, dtype=np.float64)
-        return np.where(np.abs(x2) > _EPS, np.divide(x1, x2), np.sign(x2) * np.divide(x1, abs_x2 + _EPS))
+        return np.where(abs_x2 > _EPS, np.divide(x1, x2), np.sign(x2) * np.divide(x1, abs_x2 + _EPS))
 
 
 def _protected_sqrt(x1):
