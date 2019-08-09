@@ -603,8 +603,8 @@ class BaseSymbolic(six.with_metaclass(ABCMeta, BaseEstimator)):
                     if gen > 1:
                         self._programs[-3][idx] = None
 
-                if (gen - 1) % 25 != 0:
-                    self._paretofronts[gen - 1] = None
+                #if (gen - 1) % 25 != 0:
+                 #   self._paretofronts[gen - 1] = None
                 
             
             # Record run details
